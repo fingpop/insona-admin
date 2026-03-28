@@ -117,3 +117,70 @@ export function buildStoredDeviceId(meshId: string | null | undefined, did: stri
   }
   return did;
 }
+
+// Dashboard 相关类型
+export interface DashboardStats {
+  totalDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  onlineRate: number;
+  todayKwh: number;
+  todayPeakWatts: number;
+  yesterdayKwh: number;
+  lastWeekKwh: number;
+  deviceGrowthRate: number;
+  energyGrowthRate: number;
+}
+
+export interface HourlyEnergyData {
+  hour: string;
+  kwh: number;
+  peakWatts: number;
+}
+
+export interface DeviceTypeDistribution {
+  type: number;
+  label: string;
+  count: number;
+  online: number;
+  percentage: number;
+}
+
+export interface RoomEnergyRanking {
+  roomId: string;
+  roomName: string;
+  kwh: number;
+  peakWatts: number;
+  deviceCount: number;
+}
+
+export interface FloorStatus {
+  floorId: string;
+  floorName: string;
+  total: number;
+  online: number;
+  offline: number;
+  onlineRate: number;
+  rooms: { roomId: string; roomName: string; deviceCount: number; onlineCount: number }[];
+}
+
+export interface FunctionDistribution {
+  func: number;
+  label: string;
+  count: number;
+}
+
+export interface RealtimePowerData {
+  timestamp: string;
+  watts: number;
+}
+
+export interface DashboardEvent {
+  id: string;
+  timestamp: string;
+  type: string;
+  deviceId?: string;
+  deviceName: string;
+  message: string;
+  status: "unread" | "read" | "resolved";
+}
