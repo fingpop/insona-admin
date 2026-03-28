@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Gateway {
+  id        String    @id @default("default")
+  ip        String
+  port      Int       @default(8091)
+  status    String    @default("disconnected") // "connected" | "disconnected" | "reconnecting"
+  lastSeen  DateTime?
+  updatedAt DateTime  @updatedAt
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   @default("room") // "building" | "floor" | "room"
+  parentId  String?
+  parent    Room?    @relation("RoomHierarchy", fields: [parentId], references: [id])
+  children  Room[]   @relation("RoomHierarchy")
+  meshId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices   Device[]
+}
+
+model Device {
+  id          String    @id // matches inSona did
+  pid         Int
+  ver         String?
+  type        Int       // inSona type code: 1984=light, 1860/61/62=curtain, 1218=panel, 1344=sensor
+  alive       Int       @default(0) // 1=online, 0=offline
+  name        String    // custom name in admin
+  gatewayName String    @default("") // original name from gateway
+  func        Int       // inSona func: 2=onoff, 3=dimming, 4=dual-temp, 5=HSL, 9=panel, 10=sensor, 14=AC, 21=floor-heat, 24=fresh-air
+  funcs       String    @default("[]") // JSON-encoded array of all supported funcs
+  value       String    @default("[]") // JSON-encoded array
+  meshId      String?
+  originalDid String?   // 原始 DID（组设备存储原始 ID，如 "00"）
+  ratedPower  Float     @default(10.0) // watts, for energy reference
+  roomId      String?
+  room        Room?     @relation(fields: [roomId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  energySnapshots EnergySnapshot[]
+  energyRecords   EnergyRecord[]
+  scheduledTasks  ScheduledTask[]
+
+  @@index([roomId])
+  @@index([alive])
+  @@index([type])
+  @@unique([id, meshId])
+}
+
+model Scene {
+  id        String   @id @default(cuid())
+  name      String
+  icon      String   @default("fa-star")
+  color     String   @default("#3b9eff")
+  isDefault Boolean  @default(false)  // 是否预设场景
+  isCustom  Boolean  @default(false)  // 是否用户自定义场景
+  showInQuick Boolean @default(false) // 是否在快捷场景栏显示
+  sceneId   Int?     // 网关场景ID（可选）
+  meshId    String?  // 关联的 mesh
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  actions   SceneAction[]
+  @@index([isDefault])
+  @@index([isCustom])
+  @@index([showInQuick])
+}
+
+model SceneAction {
+  id        String  @id @default(cuid())
+  sceneId   String
+  scene     Scene   @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  deviceId  String  // 设备 ID
+  action    String  // 动作类型：onoff, dim, cct, color, curtain
+  value     String  // 动作值，JSON 格式：[1] 或 [50] 或 [50, 50]
+  order     Int     @default(0)  // 执行顺序
+  meshId    String  // 设备所属 mesh
+  deviceName String @default("") // 设备名称缓存
+  @@index([sceneId])
+}
+
+model EnergySnapshot {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  timestamp DateTime @default(now())
+  kwh       Float    // instantaneous reading in kWh
+  rawPayload String  @default("{}") // full gateway event payload for debugging
+
+  @@index([deviceId, timestamp])
+}
+
+model EnergyRecord {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  date      String   // "YYYY-MM-DD"
+  kwh       Float    @default(0)
+  peakWatts Float    @default(0)
+
+  @@unique([deviceId, date])
+  @@index([date])
+}
+
+model ScheduledTask {
+  id        String  @id @default(cuid())
+  name      String
+  deviceId  String?
+  sceneId   String? // 关联 Scene 表的 id
+  device    Device? @relation(fields: [deviceId], references: [id])
+  cronExpr  String  // e.g. "0 8 * * *"
+  action    String  // "onoff" | "level" | "scene"
+  value     String  @default("[]") // JSON-encoded value array
+  enabled   Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

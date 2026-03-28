@@ -1,0 +1,20 @@
+{
+  "watch": [
+    "src/app/api/**/*.{ts,tsx}",
+    "src/lib/gateway/**/*.{ts,tsx}",
+    "src/hooks/**/*.{ts,tsx}"
+  ],
+  "ext": "ts,tsx,js,json",
+  "ignore": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
+  ],
+  "delay": "1000",
+  "restartable": "rs",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "events": {
+    "restart": "echo '🔄 后端服务已重启'"
+  }
+}

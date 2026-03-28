@@ -1,0 +1,3962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商业照明管理系统 - SmartLight Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0f1419;
+            color: #e1e8ed;
+            overflow-x: hidden;
+        }
+
+        /* 侧边栏样式 */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a1f2e 0%, #151a28 100%);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar.collapsed {
+            width: 70px;
+        }
+
+        /* 收缩状态下隐藏滚动条 */
+        .sidebar.collapsed .sidebar-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar:not(.collapsed) {
+            width: 260px;
+        }
+
+        .sidebar.collapsed .sidebar-text {
+            display: none;
+        }
+
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding: 12px;
+        }
+
+        /* 侧边栏内容容器 */
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 20px;
+        }
+
+        /* 自定义滚动条样式 */
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 侧边栏头部固定 */
+        .sidebar-header {
+            flex-shrink: 0;
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* 侧边栏底部用户区域 */
+        .sidebar-footer {
+            flex-shrink: 0;
+            padding: 20px 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* 主内容区域 */
+        .main-content {
+            margin-left: 260px;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            min-height: 100vh;
+            background: #0f1419;
+        }
+
+        .main-content.expanded {
+            margin-left: 70px;
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: linear-gradient(145deg, #1a1f2e 0%, #151a28 100%);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        /* 统计卡片 */
+        .stat-card {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        }
+
+        /* 按钮样式 */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: #e1e8ed;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* 输入框样式 */
+        .input-field {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #e1e8ed;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* 滑块样式 */
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: none;
+        }
+
+        /* 抽屉样式 */
+        .drawer {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: linear-gradient(180deg, #1a1f2e 0%, #151a28 100%);
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 2000;
+            overflow-y: auto;
+        }
+
+        .drawer.open {
+            right: 0;
+        }
+
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 1999;
+        }
+
+        .drawer-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 表格样式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table thead {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .data-table tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* 标签样式 */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .badge-warning {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .badge-error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* 导航菜单项 */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            margin: 4px 12px;
+            border-radius: 8px;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .nav-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .nav-item i {
+            width: 24px;
+            font-size: 18px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        /* 标签页样式 */
+        .tab-button {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .tab-button:hover {
+            color: #60a5fa;
+        }
+
+        .tab-button.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+
+        /* 模态框 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(145deg, #1a1f2e 0%, #151a28 100%);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 图表容器 */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+        }
+
+        .chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* 语言切换下拉菜单 */
+        .lang-dropdown {
+            position: relative;
+        }
+
+        .lang-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: linear-gradient(145deg, #1a1f2e 0%, #151a28 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px;
+            min-width: 160px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .lang-menu.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .lang-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .lang-menu-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+        }
+
+        .lang-menu-item.active {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .lang-menu-item i {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* 设备状态指示器 */
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #4ade80;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+        }
+
+        .status-offline {
+            background: #64748b;
+        }
+
+        .status-warning {
+            background: #fbbf24;
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+        }
+
+        /* 颜色选择器 */
+        .color-picker {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            cursor: crosshair;
+            position: relative;
+            background: linear-gradient(to right,
+                    rgb(255, 0, 0),
+                    rgb(255, 255, 0),
+                    rgb(0, 255, 0),
+                    rgb(0, 255, 255),
+                    rgb(0, 0, 255),
+                    rgb(255, 0, 255),
+                    rgb(255, 0, 0));
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 动画 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .sidebar:not(.collapsed) {
+                width: 100%;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .drawer {
+                width: 100%;
+                right: -100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 侧边栏 -->
+    <aside id="sidebar" class="sidebar">
+        <!-- 固定头部 -->
+        <div class="sidebar-header">
+            <div class="flex items-center justify-between">
+                <a href="projects.html" class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                    title="返回项目中心">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-lightbulb text-white text-xl"></i>
+                    </div>
+                    <div class="sidebar-text" style="overflow: hidden; white-space: nowrap;">
+                        <h1 class="text-lg font-bold text-white">inSona商照平台</h1>
+                        <p class="text-xs text-gray-400">Pro v3.0</p>
+                    </div>
+                </a>
+                <button id="toggleSidebar" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 可滚动导航区域 -->
+        <div class="sidebar-content">
+            <nav class="space-y-1 px-3 pt-4">
+                <a href="projects.html" class="nav-item"
+                    style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%); border-left: 3px solid #3b82f6;">
+                    <i class="fas fa-th-large"></i>
+                    <span class="sidebar-text ml-3">项目中心</span>
+                </a>
+                <div class="my-2 mx-4 border-t border-gray-700"></div>
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-home"></i>
+                    <span class="sidebar-text ml-3">系统首页</span>
+                </a>
+                <a href="#" class="nav-item" data-page="spaces">
+                    <i class="fas fa-layer-group"></i>
+                    <span class="sidebar-text ml-3">空间管理</span>
+                </a>
+                <a href="#" class="nav-item" data-page="devices">
+                    <i class="fas fa-lightbulb"></i>
+                    <span class="sidebar-text ml-3">设备管理</span>
+                </a>
+                <a href="#" class="nav-item" data-page="scenes">
+                    <i class="fas fa-magic"></i>
+                    <span class="sidebar-text ml-3">场景管理</span>
+                </a>
+                <a href="#" class="nav-item" data-page="schedules">
+                    <i class="fas fa-clock"></i>
+                    <span class="sidebar-text ml-3">定时管理</span>
+                </a>
+                <a href="#" class="nav-item" data-page="automation">
+                    <i class="fas fa-robot"></i>
+                    <span class="sidebar-text ml-3">自动化</span>
+                </a>
+                <a href="#" class="nav-item" data-page="analytics">
+                    <i class="fas fa-chart-line"></i>
+                    <span class="sidebar-text ml-3">能耗分析</span>
+                </a>
+                <a href="#" class="nav-item" data-page="logs">
+                    <i class="fas fa-file-alt"></i>
+                    <span class="sidebar-text ml-3">日志系统</span>
+                </a>
+                <a href="#" class="nav-item" data-page="ota">
+                    <i class="fas fa-download"></i>
+                    <span class="sidebar-text ml-3">固件升级</span>
+                </a>
+                <a href="#" class="nav-item" data-page="users">
+                    <i class="fas fa-users"></i>
+                    <span class="sidebar-text ml-3">用户管理</span>
+                </a>
+                <a href="#" class="nav-item" data-page="cad-import">
+                    <i class="fas fa-file-import"></i>
+                    <span class="sidebar-text ml-3">CAD导入</span>
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i class="fas fa-cog"></i>
+                    <span class="sidebar-text ml-3">系统设置</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- 底部用户信息区域 -->
+        <div class="sidebar-footer">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-user text-white"></i>
+                </div>
+                <div class="sidebar-text" style="overflow: hidden; white-space: nowrap;">
+                    <p class="text-sm font-medium text-white">管理员</p>
+                    <p class="text-xs text-gray-400">admin@smartlight.com</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main id="mainContent" class="main-content">
+        <!-- 顶部导航栏 -->
+        <header class="bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700 sticky top-0 z-50">
+            <div class="px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <!-- 面包屑导航 -->
+                        <div class="flex items-center gap-2 mb-2 text-sm">
+                            <a href="projects.html" class="text-gray-400 hover:text-blue-400 transition-colors">
+                                <i class="fas fa-th-large mr-1"></i>项目中心
+                            </a>
+                            <span class="text-gray-600">/</span>
+                            <span class="text-blue-400" id="currentProjectName">当前项目</span>
+                        </div>
+                        <h2 id="pageTitle" class="text-2xl font-bold text-white">系统首页</h2>
+                        <p class="text-sm text-gray-400 mt-1">实时监控与数据概览</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-bell"></i>
+                            <span class="badge badge-error" style="margin-left: -8px; margin-top: -20px;">3</span>
+                        </button>
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <!-- 语言切换 -->
+                        <div class="lang-dropdown">
+                            <button id="langToggle" class="btn btn-primary flex items-center gap-2">
+                                <i class="fas fa-globe"></i>
+                                <span id="currentLang">简体中文</span>
+                                <i class="fas fa-chevron-down text-xs"></i>
+                            </button>
+                            <div id="langMenu" class="lang-menu">
+                                <div class="lang-menu-item active" data-lang="zh-CN">
+                                    <i class="fas fa-check"></i>
+                                    <span>简体中文</span>
+                                </div>
+                                <div class="lang-menu-item" data-lang="en-US">
+                                    <i class="fas fa-circle" style="font-size: 8px; opacity: 0;"></i>
+                                    <span>English</span>
+                                </div>
+                                <div class="lang-menu-item" data-lang="ja-JP">
+                                    <i class="fas fa-circle" style="font-size: 8px; opacity: 0;"></i>
+                                    <span>日本語</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 页面内容容器 -->
+        <div id="pageContent" class="p-8">
+            <!-- Dashboard 内容将在这里动态加载 -->
+        </div>
+    </main>
+
+    <!-- 设备控制抽屉 -->
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+    <div id="deviceDrawer" class="drawer">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-white">设备控制</h3>
+                <button id="closeDrawer" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div id="drawerContent" class="space-y-6">
+                <!-- 设备控制内容将动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 通用模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="flex items-center justify-between mb-6">
+                <h3 id="modalTitle" class="text-xl font-bold text-white"></h3>
+                <button id="closeModal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 全局状态管理 ====================
+        const AppState = {
+            currentPage: 'dashboard',
+            sidebarCollapsed: false,
+            devices: [],
+            projects: [],
+            scenes: [],
+            schedules: [],
+            automations: []
+        };
+
+        // ==================== 工具函数 ====================
+        function showNotification(message, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            // 实际项目中可以使用 toast 库
+        }
+
+        function formatDate(date) {
+            return new Date(date).toLocaleString('zh-CN');
+        }
+
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        // ==================== 侧边栏控制 ====================
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
+
+        toggleSidebarBtn.addEventListener('click', () => {
+            AppState.sidebarCollapsed = !AppState.sidebarCollapsed;
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        });
+
+        // ==================== 抽屉控制 ====================
+        const drawer = document.getElementById('deviceDrawer');
+        const drawerOverlay = document.getElementById('drawerOverlay');
+        const closeDrawerBtn = document.getElementById('closeDrawer');
+
+        function openDrawer(deviceId) {
+            drawer.classList.add('open');
+            drawerOverlay.classList.add('active');
+            loadDeviceControls(deviceId);
+        }
+
+        function closeDrawer() {
+            drawer.classList.remove('open');
+            drawerOverlay.classList.remove('active');
+        }
+
+        closeDrawerBtn.addEventListener('click', closeDrawer);
+        drawerOverlay.addEventListener('click', closeDrawer);
+
+        // ==================== 模态框控制 ====================
+        const modal = document.getElementById('modal');
+        const closeModalBtn = document.getElementById('closeModal');
+
+        function openModal(title, content) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').innerHTML = content;
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+
+        // ==================== 页面路由 ====================
+        const navItems = document.querySelectorAll('.nav-item');
+        const pageTitle = document.getElementById('pageTitle');
+        const pageContent = document.getElementById('pageContent');
+
+        navItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = item.dataset.page;
+                navigateTo(page);
+            });
+        });
+
+        function navigateTo(page) {
+            AppState.currentPage = page;
+
+            // 更新导航高亮
+            navItems.forEach(item => item.classList.remove('active'));
+            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+
+            // 加载页面内容
+            loadPage(page);
+        }
+
+        function loadPage(page) {
+            const pages = {
+                'dashboard': loadDashboard,
+                'spaces': loadSpaces,
+                'devices': loadDevices,
+                'scenes': loadScenes,
+                'schedules': loadSchedules,
+                'automation': loadAutomation,
+                'analytics': loadAnalytics,
+                'logs': loadLogs,
+                'ota': loadOTA,
+                'users': loadUsers,
+                'cad-import': loadCADImport,
+                'settings': loadSettings
+            };
+
+            const loader = pages[page];
+            if (loader) {
+                loader();
+            }
+        }
+
+        // ==================== Dashboard 页面 ====================
+        function loadDashboard() {
+            pageTitle.textContent = '系统首页';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <!-- 统计卡片 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="stat-card">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <p class="text-sm text-blue-200 mb-1">总设备数</p>
+                                    <h3 class="text-3xl font-bold text-white">1,247</h3>
+                                </div>
+                                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-lightbulb text-white text-xl"></i>
+                                </div>
+                            </div>
+                           
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #059669 0%, #047857 100%);">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <p class="text-sm text-green-200 mb-1">在线设备</p>
+                                    <h3 class="text-3xl font-bold text-white">1,189</h3>
+                                </div>
+                                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-check-circle text-white text-xl"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-green-200">在线率: 95.3%</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <p class="text-sm text-red-200 mb-1">告警数量</p>
+                                    <h3 class="text-3xl font-bold text-white">23</h3>
+                                </div>
+                                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-exclamation-triangle text-white text-xl"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-red-200">需要关注</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <p class="text-sm text-purple-200 mb-1">活跃项目</p>
+                                    <h3 class="text-3xl font-bold text-white">18</h3>
+                                </div>
+                                <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-building text-white text-xl"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <span class="text-purple-200">覆盖12城市</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图表和数据 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div class="lg:col-span-2 card">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-lg font-bold text-white">能耗趋势</h3>
+                                <select id="energyPeriodSelect" class="input-field" style="width: auto;">
+                                    <option value="7">近7天</option>
+                                    <option value="30">近30天</option>
+                                    <option value="90">近90天</option>
+                                </select>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="energyChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">设备状态分布</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm text-gray-400">在线</span>
+                                        <span class="text-sm font-medium text-white">95.3%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 95.3%; background: linear-gradient(90deg, #10b981 0%, #059669 100%);"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm text-gray-400">离线</span>
+                                        <span class="text-sm font-medium text-white">3.2%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 3.2%; background: linear-gradient(90deg, #64748b 0%, #475569 100%);"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm text-gray-400">故障</span>
+                                        <span class="text-sm font-medium text-white">1.5%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 1.5%; background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-8 p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                                <p class="text-sm text-blue-300 mb-2"><i class="fas fa-info-circle mr-2"></i>系统提示</p>
+                                <p class="text-xs text-gray-400">建议对离线设备进行检修，确保系统稳定运行</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 最近活动 -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">场景执行记录</h3>
+                            <div class="space-y-4">
+                                ${generateRecentActivities()}
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">最新告警</h3>
+                            <div class="space-y-4">
+                                ${generateRecentAlerts()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 绘制能耗趋势图表
+            setTimeout(() => {
+                initEnergyChart();
+            }, 100);
+
+            // 监听时间周期切换
+            const periodSelect = document.getElementById('energyPeriodSelect');
+            if (periodSelect) {
+                periodSelect.addEventListener('change', (e) => {
+                    updateEnergyChart(e.target.value);
+                });
+            }
+        }
+
+        function generateRecentActivities() {
+            const activities = [
+                { scene: '会议室-演示模式', time: '2分钟前', icon: 'magic', color: 'blue' },
+                { scene: '大堂-欢迎模式', time: '15分钟前', icon: 'lightbulb', color: 'green' },
+                { scene: '办公区-节能模式', time: '1小时前', icon: 'leaf', color: 'emerald' },
+                { scene: '展厅-展示模式', time: '2小时前', icon: 'star', color: 'yellow' }
+            ];
+
+            return activities.map(act => `
+                <div class="flex items-center gap-4 p-3 rounded-lg bg-white bg-opacity-5 hover:bg-opacity-10 transition-all">
+                    <div class="w-10 h-10 bg-${act.color}-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-${act.icon} text-${act.color}-400"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-white">${act.scene}</p>
+                        <p class="text-xs text-gray-400">${act.time}</p>
+                    </div>
+                    <span class="badge badge-success">成功</span>
+                </div>
+            `).join('');
+        }
+
+        function generateRecentAlerts() {
+            const alerts = [
+                { device: '3F会议室灯具#08', message: '通信异常', time: '5分钟前', type: 'error' },
+                { device: '2F走廊灯具#23', message: '功率异常', time: '30分钟前', type: 'warning' },
+                { device: '1F大堂面板#05', message: '离线', time: '1小时前', type: 'error' }
+            ];
+
+            return alerts.map(alert => `
+                <div class="flex items-start gap-4 p-3 rounded-lg bg-white bg-opacity-5 hover:bg-opacity-10 transition-all">
+                    <div class="w-10 h-10 bg-${alert.type === 'error' ? 'red' : 'yellow'}-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-exclamation-triangle text-${alert.type === 'error' ? 'red' : 'yellow'}-400"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-white">${alert.device}</p>
+                        <p class="text-xs text-gray-400">${alert.message} · ${alert.time}</p>
+                    </div>
+                    <button class="btn btn-secondary text-xs px-3 py-1">处理</button>
+                </div>
+            `).join('');
+        }
+
+        // 能耗图表实例
+        let energyChartInstance = null;
+
+        // 生成模拟数据
+        function generateEnergyData(days) {
+            const data = [];
+            const labels = [];
+            const now = new Date();
+
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+
+                if (days <= 7) {
+                    labels.push(`${date.getMonth() + 1}/${date.getDate()}`);
+                } else if (days <= 30) {
+                    if (i % 2 === 0) labels.push(`${date.getMonth() + 1}/${date.getDate()}`);
+                    else labels.push('');
+                } else {
+                    if (i % 7 === 0) labels.push(`${date.getMonth() + 1}/${date.getDate()}`);
+                    else labels.push('');
+                }
+
+                // 生成模拟能耗数据（基础值 + 随机波动）
+                const baseValue = 2800;
+                const randomFactor = Math.random() * 800 - 400;
+                const weekdayFactor = (date.getDay() >= 1 && date.getDay() <= 5) ? 400 : -200;
+                data.push(Math.round(baseValue + randomFactor + weekdayFactor));
+            }
+
+            return { labels, data };
+        }
+
+        // 初始化能耗图表
+        function initEnergyChart() {
+            const canvas = document.getElementById('energyChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const { labels, data } = generateEnergyData(7);
+
+            // 销毁旧图表
+            if (energyChartInstance) {
+                energyChartInstance.destroy();
+            }
+
+            energyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '能耗 (kWh)',
+                        data: data,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgb(59, 130, 246)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: 'rgb(59, 130, 246)',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#e1e8ed',
+                            borderColor: 'rgba(59, 130, 246, 0.5)',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function (context) {
+                                    return '能耗: ' + context.parsed.y.toLocaleString() + ' kWh';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: function (value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.05)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#94a3b8'
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        // 更新能耗图表
+        function updateEnergyChart(days) {
+            if (!energyChartInstance) return;
+
+            const { labels, data } = generateEnergyData(parseInt(days));
+
+            energyChartInstance.data.labels = labels;
+            energyChartInstance.data.datasets[0].data = data;
+            energyChartInstance.update('active');
+        }
+
+        // ==================== 空间/区域管理页面 ====================
+        function loadSpaces() {
+            pageTitle.textContent = '空间管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <!-- 标签页切换 -->
+                    <div class="card mb-6">
+                        <div class="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+                            <div class="flex gap-2">
+                                <button class="tab-button active" data-space-tab="hierarchy" onclick="switchSpaceTab('hierarchy')">
+                                    <i class="fas fa-sitemap mr-2"></i>层级结构
+                                </button>
+                                <button class="tab-button" data-space-tab="devices" onclick="switchSpaceTab('devices')">
+                                    <i class="fas fa-link mr-2"></i>设备绑定
+                                </button>
+                                <button class="tab-button" data-space-tab="transfer" onclick="switchSpaceTab('transfer')">
+                                    <i class="fas fa-exchange-alt mr-2"></i>批量转移
+                                </button>
+                            </div>
+                            <button onclick="openAddSpaceModal()" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                <span>新建空间</span>
+                            </button>
+                        </div>
+        
+                        <div id="spaceTabContent">
+                            <!-- 内容将动态加载 -->
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 加载默认标签页
+            switchSpaceTab('hierarchy');
+        }
+
+        // 切换空间管理标签页
+        function switchSpaceTab(tab) {
+            // 更新标签按钮状态
+            document.querySelectorAll('[data-space-tab]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-space-tab="${tab}"]`).classList.add('active');
+
+            const content = document.getElementById('spaceTabContent');
+
+            switch (tab) {
+                case 'hierarchy':
+                    content.innerHTML = generateHierarchyView();
+                    break;
+                case 'devices':
+                    content.innerHTML = generateDeviceBindingView();
+                    break;
+                case 'transfer':
+                    content.innerHTML = generateBatchTransferView();
+                    break;
+            }
+        }
+
+        // 生成层级结构视图
+        function generateHierarchyView() {
+            return `
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <!-- 左侧：树形结构 -->
+                    <div class="lg:col-span-1">
+                        <div class="p-4 bg-white bg-opacity-5 rounded-lg">
+                            <h4 class="text-sm font-bold text-white mb-4 flex items-center justify-between">
+                                <span>空间树</span>
+                                <button onclick="expandAllSpaces()" class="text-xs text-blue-400 hover:text-blue-300">
+                                    <i class="fas fa-expand-alt"></i>
+                                </button>
+                            </h4>
+                            <div class="space-y-1">
+                                ${generateSpaceTree()}
+                            </div>
+                        </div>
+                    </div>
+        
+                    <!-- 右侧：详细信息 -->
+                    <div class="lg:col-span-3">
+                        <div class="p-6 bg-white bg-opacity-5 rounded-lg">
+                            <div class="flex items-center justify-between mb-6">
+                                <h4 class="text-lg font-bold text-white">空间详情</h4>
+                                <div class="flex gap-2">
+                                    <button onclick="editCurrentSpace()" class="btn btn-secondary text-sm">
+                                        <i class="fas fa-edit"></i>
+                                        <span>编辑</span>
+                                    </button>
+                                    <button onclick="deleteCurrentSpace()" class="btn btn-secondary text-sm">
+                                        <i class="fas fa-trash"></i>
+                                        <span>删除</span>
+                                    </button>
+                                </div>
+                            </div>
+                                    
+                            <div id="spaceDetailContent">
+                                ${generateSpaceDetail()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 生成空间树形结构
+        function generateSpaceTree() {
+            const spaces = [
+                {
+                    id: 'building-1',
+                    name: '主楼',
+                    type: 'building',
+                    icon: 'building',
+                    children: [
+                        {
+                            id: 'floor-1',
+                            name: '1F',
+                            type: 'floor',
+                            icon: 'layer-group',
+                            children: [
+                                { id: 'room-101', name: '大堂', type: 'room', icon: 'door-open', devices: 24 },
+                                { id: 'room-102', name: '接待区', type: 'room', icon: 'couch', devices: 8 },
+                                { id: 'room-103', name: '展厅', type: 'room', icon: 'image', devices: 18 }
+                            ]
+                        },
+                        {
+                            id: 'floor-2',
+                            name: '2F',
+                            type: 'floor',
+                            icon: 'layer-group',
+                            children: [
+                                { id: 'room-201', name: '走廊', type: 'room', icon: 'arrows-alt-h', devices: 12 },
+                                { id: 'room-202', name: '休息区', type: 'room', icon: 'coffee', devices: 6 }
+                            ]
+                        },
+                        {
+                            id: 'floor-3',
+                            name: '3F',
+                            type: 'floor',
+                            icon: 'layer-group',
+                            children: [
+                                { id: 'room-301', name: '会议室A', type: 'room', icon: 'users', devices: 12 },
+                                { id: 'room-302', name: '会议室B', type: 'room', icon: 'users', devices: 12 }
+                            ]
+                        }
+                    ]
+                }
+            ];
+
+            function renderTreeNode(node, level = 0) {
+                const hasChildren = node.children && node.children.length > 0;
+                const indent = level * 16;
+
+                let html = `
+                    <div class="space-tree-node" data-space-id="${node.id}">
+                        <div class="flex items-center gap-2 px-2 py-2 rounded hover:bg-white hover:bg-opacity-10 cursor-pointer transition-all" 
+                             style="padding-left: ${indent + 8}px" onclick="selectSpace('${node.id}')">
+                            ${hasChildren ? `
+                                <i class="fas fa-chevron-right text-xs text-gray-400 transition-transform tree-toggle" 
+                                   onclick="toggleTreeNode(event, '${node.id}')"></i>
+                            ` : '<span style="width: 12px;"></span>'}
+                            <i class="fas fa-${node.icon} text-blue-400 text-sm"></i>
+                            <span class="text-sm text-white flex-1">${node.name}</span>
+                            ${node.devices ? `<span class="text-xs text-gray-400">${node.devices}设备</span>` : ''}
+                        </div>
+                        ${hasChildren ? `
+                            <div class="tree-children" data-parent="${node.id}" style="display: none;">
+                                ${node.children.map(child => renderTreeNode(child, level + 1)).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                return html;
+            }
+
+            return spaces.map(space => renderTreeNode(space)).join('');
+        }
+
+        // 生成空间详情
+        function generateSpaceDetail() {
+            return `
+                <div class="space-y-6">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">空间名称</label>
+                            <p class="text-white font-medium">大堂</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">空间类型</label>
+                            <p class="text-white">房间</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">所属楼层</label>
+                            <p class="text-white">主楼 - 1F</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">绑定设备</label>
+                            <p class="text-blue-400 font-medium">24 个设备</p>
+                        </div>
+                    </div>
+        
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-3">设备列表</label>
+                        <div class="space-y-2">
+                            ${generateSpaceDeviceList()}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 生成空间设备列表
+        function generateSpaceDeviceList() {
+            const devices = [
+                { id: 'L001', name: '大堂主灯#01', type: '灯光', icon: 'lightbulb', status: 'online' },
+                { id: 'L002', name: '大堂筒灯#02', type: '灯光', icon: 'lightbulb', status: 'online' },
+                { id: 'P001', name: '入口面板#01', type: '面板', icon: 'tablet-alt', status: 'online' },
+                { id: 'S001', name: '光照传感器#01', type: '传感器', icon: 'sun', status: 'online' }
+            ];
+
+            return devices.map(device => `
+                <div class="flex items-center justify-between p-3 bg-black bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-all">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                            <i class="fas fa-${device.icon} text-blue-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-white font-medium">${device.name}</p>
+                            <p class="text-xs text-gray-400">${device.type} · ID: ${device.id}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="badge badge-success">在线</span>
+                        <button onclick="unbindDevice('${device.id}')" class="text-gray-400 hover:text-red-400 transition-colors">
+                            <i class="fas fa-unlink"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 生成设备绑定视图
+        function generateDeviceBindingView() {
+            return `
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 左侧：未绑定设备 -->
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-bold text-white">未绑定设备</h4>
+                            <div class="flex gap-2">
+                                <select class="input-field text-sm" style="width: auto;">
+                                    <option>全部类型</option>
+                                    <option>灯光设备</option>
+                                    <option>控制面板</option>
+                                    <option>传感器</option>
+                                </select>
+                                <input type="text" class="input-field text-sm" placeholder="搜索设备..." style="width: 200px;">
+                            </div>
+                        </div>
+                        <div class="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+                            ${generateUnboundDevices()}
+                        </div>
+                    </div>
+        
+                    <!-- 右侧：绑定操作 -->
+                    <div>
+                        <div class="p-6 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                            <h4 class="text-lg font-bold text-white mb-6">
+                                <i class="fas fa-link mr-2"></i>
+                                设备绑定
+                            </h4>
+                                    
+                            <form onsubmit="handleDeviceBind(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">选择设备</label>
+                                    <div id="selectedDevices" class="min-h-[100px] p-3 bg-black bg-opacity-20 rounded-lg border border-dashed border-gray-600">
+                                        <p class="text-sm text-gray-400 text-center py-4">请从左侧选择设备</p>
+                                    </div>
+                                </div>
+        
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">目标空间</label>
+                                    <select class="input-field" required>
+                                        <option value="">选择空间</option>
+                                        <option value="room-101">主楼 - 1F - 大堂</option>
+                                        <option value="room-102">主楼 - 1F - 接待区</option>
+                                        <option value="room-103">主楼 - 1F - 展厅</option>
+                                        <option value="room-201">主楼 - 2F - 走廊</option>
+                                        <option value="room-202">主楼 - 2F - 休息区</option>
+                                        <option value="room-301">主楼 - 3F - 会议室A</option>
+                                        <option value="room-302">主楼 - 3F - 会议室B</option>
+                                    </select>
+                                </div>
+        
+                                <button type="submit" class="btn btn-primary w-full">
+                                    <i class="fas fa-check"></i>
+                                    <span>确认绑定</span>
+                                </button>
+                            </form>
+                        </div>
+        
+                        <div class="mt-6 p-4 bg-yellow-500 bg-opacity-10 rounded-lg border border-yellow-500 border-opacity-20">
+                            <p class="text-sm text-yellow-400 mb-2">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                绑定说明
+                            </p>
+                            <ul class="text-xs text-gray-400 space-y-1 ml-6">
+                                <li>• 支持单个或批量绑定设备</li>
+                                <li>• 每个设备只能绑定到一个空间</li>
+                                <li>• 绑定后可在层级结构中查看</li>
+                                <li>• 可随时解绑或转移设备</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 生成未绑定设备列表
+        function generateUnboundDevices() {
+            const devices = [
+                { id: 'L010', name: '灯具设备#10', type: '灯光', icon: 'lightbulb' },
+                { id: 'L011', name: '灯具设备#11', type: '灯光', icon: 'lightbulb' },
+                { id: 'P005', name: '控制面板#05', type: '面板', icon: 'tablet-alt' },
+                { id: 'S008', name: '人体传感器#08', type: '传感器', icon: 'walking' },
+                { id: 'L012', name: '灯具设备#12', type: '灯光', icon: 'lightbulb' },
+                { id: 'S009', name: '光照传感器#09', type: '传感器', icon: 'sun' }
+            ];
+
+            return devices.map(device => `
+                <div class="flex items-center justify-between p-3 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all cursor-pointer"
+                     onclick="selectDeviceForBind('${device.id}', '${device.name}')">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" class="form-checkbox" id="device-${device.id}">
+                        <div class="w-8 h-8 bg-gray-600 bg-opacity-30 rounded flex items-center justify-center">
+                            <i class="fas fa-${device.icon} text-gray-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-white font-medium">${device.name}</p>
+                            <p class="text-xs text-gray-400">${device.type} · ID: ${device.id}</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-arrow-right text-gray-400"></i>
+                </div>
+            `).join('');
+        }
+
+        // 生成批量转移视图
+        function generateBatchTransferView() {
+            return `
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 源空间 -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-4">
+                            <i class="fas fa-sign-out-alt mr-2 text-red-400"></i>
+                            源空间
+                        </h4>
+                        <select id="sourceSpace" class="input-field mb-4" onchange="loadSourceSpaceDevices()">
+                            <option value="">选择源空间</option>
+                            <option value="room-101">主楼 - 1F - 大堂</option>
+                            <option value="room-102">主楼 - 1F - 接待区</option>
+                            <option value="room-103">主楼 - 1F - 展厅</option>
+                            <option value="room-201">主楼 - 2F - 走廊</option>
+                            <option value="room-202">主楼 - 2F - 休息区</option>
+                        </select>
+                        <div id="sourceDeviceList" class="space-y-2 max-h-[500px] overflow-y-auto">
+                            <p class="text-sm text-gray-400 text-center py-8">请先选择源空间</p>
+                        </div>
+                    </div>
+        
+                    <!-- 转移操作 -->
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="p-6 bg-white bg-opacity-5 rounded-lg text-center">
+                            <div class="mb-6">
+                                <i class="fas fa-exchange-alt text-blue-400 text-4xl"></i>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-4">已选择</p>
+                            <p class="text-2xl font-bold text-white mb-6" id="selectedCount">0</p>
+                            <button onclick="executeTransfer()" class="btn btn-primary w-full" disabled id="transferBtn">
+                                <i class="fas fa-arrow-right"></i>
+                                <span>开始转移</span>
+                            </button>
+                        </div>
+                    </div>
+        
+                    <!-- 目标空间 -->
+                    <div>
+                        <h4 class="text-lg font-bold text-white mb-4">
+                            <i class="fas fa-sign-in-alt mr-2 text-green-400"></i>
+                            目标空间
+                        </h4>
+                        <select id="targetSpace" class="input-field mb-4">
+                            <option value="">选择目标空间</option>
+                            <option value="room-101">主楼 - 1F - 大堂</option>
+                            <option value="room-102">主楼 - 1F - 接待区</option>
+                            <option value="room-103">主楼 - 1F - 展厅</option>
+                            <option value="room-201">主楼 - 2F - 走廊</option>
+                            <option value="room-202">主楼 - 2F - 休息区</option>
+                            <option value="room-301">主楼 - 3F - 会议室A</option>
+                            <option value="room-302">主楼 - 3F - 会议室B</option>
+                        </select>
+                        <div class="p-4 bg-green-500 bg-opacity-10 rounded-lg border border-green-500 border-opacity-20">
+                            <p class="text-sm text-green-400 mb-2">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                转移说明
+                            </p>
+                            <ul class="text-xs text-gray-400 space-y-1">
+                                <li>✓ 支持批量选择设备</li>
+                                <li>✓ 自动更新设备绑定关系</li>
+                                <li>✓ 保留设备配置信息</li>
+                                <li>✓ 支持跨楼层转移</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 树形节点展开/收起
+        window.toggleTreeNode = function (event, nodeId) {
+            event.stopPropagation();
+            const toggle = event.target;
+            const children = document.querySelector(`.tree-children[data-parent="${nodeId}"]`);
+
+            if (children) {
+                const isExpanded = children.style.display !== 'none';
+                children.style.display = isExpanded ? 'none' : 'block';
+                toggle.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(90deg)';
+            }
+        };
+
+        // 选择空间
+        window.selectSpace = function (spaceId) {
+            console.log('选择空间:', spaceId);
+            // 这里可以加载对应空间的详细信息
+        };
+
+        // 展开所有节点
+        window.expandAllSpaces = function () {
+            document.querySelectorAll('.tree-children').forEach(el => {
+                el.style.display = 'block';
+            });
+            document.querySelectorAll('.tree-toggle').forEach(el => {
+                el.style.transform = 'rotate(90deg)';
+            });
+        };
+
+        // 编辑空间
+        window.editCurrentSpace = function () {
+            showNotification('编辑空间功能', 'info');
+        };
+
+        // 删除空间
+        window.deleteCurrentSpace = function () {
+            if (confirm('确认删除该空间？此操作将解绑所有设备。')) {
+                showNotification('空间已删除', 'success');
+            }
+        };
+
+        // 解绑设备
+        window.unbindDevice = function (deviceId) {
+            if (confirm('确认解绑该设备？')) {
+                showNotification(`设备 ${deviceId} 已解绑`, 'success');
+            }
+        };
+
+        // 选择设备进行绑定
+        window.selectDeviceForBind = function (deviceId, deviceName) {
+            const checkbox = document.getElementById(`device-${deviceId}`);
+            checkbox.checked = !checkbox.checked;
+        };
+
+        // 处理设备绑定
+        window.handleDeviceBind = function (event) {
+            event.preventDefault();
+            showNotification('设备绑定成功！', 'success');
+            setTimeout(() => {
+                switchSpaceTab('hierarchy');
+            }, 500);
+        };
+
+        // 加载源空间设备
+        window.loadSourceSpaceDevices = function () {
+            const sourceSpace = document.getElementById('sourceSpace').value;
+            const deviceList = document.getElementById('sourceDeviceList');
+
+            if (!sourceSpace) {
+                deviceList.innerHTML = '<p class="text-sm text-gray-400 text-center py-8">请先选择源空间</p>';
+                return;
+            }
+
+            // 模拟设备列表
+            const devices = [
+                { id: 'L001', name: '大堂主灯#01', type: '灯光' },
+                { id: 'L002', name: '大堂筒灯#02', type: '灯光' },
+                { id: 'P001', name: '入口面板#01', type: '面板' },
+                { id: 'S001', name: '光照传感器#01', type: '传感器' }
+            ];
+
+            deviceList.innerHTML = devices.map(device => `
+                <div class="flex items-center gap-3 p-3 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                    <input type="checkbox" class="form-checkbox" onchange="updateTransferCount()">
+                    <div class="flex-1">
+                        <p class="text-sm text-white font-medium">${device.name}</p>
+                        <p class="text-xs text-gray-400">${device.type} · ${device.id}</p>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        // 更新转移数量
+        window.updateTransferCount = function () {
+            const count = document.querySelectorAll('#sourceDeviceList input[type="checkbox"]:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('transferBtn').disabled = count === 0;
+        };
+
+        // 执行转移
+        window.executeTransfer = function () {
+            const sourceSpace = document.getElementById('sourceSpace').value;
+            const targetSpace = document.getElementById('targetSpace').value;
+            const count = document.querySelectorAll('#sourceDeviceList input[type="checkbox"]:checked').length;
+
+            if (!targetSpace) {
+                showNotification('请选择目标空间', 'warning');
+                return;
+            }
+
+            if (sourceSpace === targetSpace) {
+                showNotification('源空间和目标空间不能相同', 'warning');
+                return;
+            }
+
+            showNotification(`成功转移 ${count} 个设备`, 'success');
+
+            // 重置
+            setTimeout(() => {
+                document.getElementById('sourceSpace').value = '';
+                document.getElementById('targetSpace').value = '';
+                loadSourceSpaceDevices();
+                document.getElementById('selectedCount').textContent = '0';
+                document.getElementById('transferBtn').disabled = true;
+            }, 1000);
+        };
+
+        // 新建空间
+        window.openAddSpaceModal = function () {
+            openModal('新建空间', `
+                <form onsubmit="handleAddSpace(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">空间类型</label>
+                        <select class="input-field" required>
+                            <option value="">选择类型</option>
+                            <option value="building">建筑</option>
+                            <option value="floor">楼层</option>
+                            <option value="area">区域</option>
+                            <option value="room">房间</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">空间名称</label>
+                        <input type="text" class="input-field" placeholder="请输入空间名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">父级空间</label>
+                        <select class="input-field">
+                            <option value="">无（顶级空间）</option>
+                            <option value="building-1">主楼</option>
+                            <option value="floor-1">主楼 - 1F</option>
+                            <option value="floor-2">主楼 - 2F</option>
+                            <option value="floor-3">主楼 - 3F</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">空间描述</label>
+                        <textarea class="input-field" rows="3" placeholder="选填"></textarea>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">创建空间</button>
+                    </div>
+                </form>
+            `);
+        };
+
+        window.handleAddSpace = function (event) {
+            event.preventDefault();
+            showNotification('空间创建成功！', 'success');
+            closeModal();
+            loadSpaces();
+        };
+
+        // ==================== 设备管理页面 ====================
+        function loadDevices() {
+            pageTitle.textContent = '设备管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card">
+                        <!-- 筛选工具栏 -->
+                        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
+                            <div class="flex gap-3 flex-1">
+                                <!-- 位置空间筛选 -->
+                                <select id="spaceFilter" class="input-field" style="width: 200px;" onchange="applyDeviceFilters()">
+                                    <option value="">全部位置</option>
+                                    <option value="floor-1">主楼 - 1F</option>
+                                    <option value="room-101">主楼 - 1F - 大堂</option>
+                                    <option value="room-102">主楼 - 1F - 接待区</option>
+                                    <option value="room-103">主楼 - 1F - 展厅</option>
+                                    <option value="floor-2">主楼 - 2F</option>
+                                    <option value="room-201">主楼 - 2F - 走廊</option>
+                                    <option value="room-202">主楼 - 2F - 休息区</option>
+                                    <option value="floor-3">主楼 - 3F</option>
+                                    <option value="room-301">主楼 - 3F - 会议室A</option>
+                                    <option value="room-302">主楼 - 3F - 会议室B</option>
+                                </select>
+                                
+                                <!-- 名称搜索 -->
+                                <div class="relative flex-1" style="max-width: 300px;">
+                                    <input type="text" id="deviceSearch" class="input-field" placeholder="搜索设备名称或ID..." 
+                                           oninput="applyDeviceFilters()" style="padding-right: 40px;">
+                                    <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                </div>
+                                
+                                <!-- 设备状态筛选 -->
+                                <select id="statusFilter" class="input-field" style="width: 150px;" onchange="applyDeviceFilters()">
+                                    <option value="">全部状态</option>
+                                    <option value="online">在线</option>
+                                    <option value="offline">离线</option>
+                                    <option value="warning">异常</option>
+                                </select>
+                                
+                                <button onclick="clearDeviceFilters()" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i>
+                                    <span>清除筛选</span>
+                                </button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="openDeviceGroupManager()" class="btn btn-secondary">
+                                    <i class="fas fa-object-group"></i>
+                                    <span>分组管理</span>
+                                </button>
+                                <button onclick="openAddDeviceModal()" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i>
+                                    <span>添加设备</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 标签页切换 -->
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex gap-2">
+                                <button class="tab-button active" data-tab="lights" onclick="switchDeviceTab('lights')">
+                                    <i class="fas fa-lightbulb mr-2"></i>灯光设备
+                                </button>
+                                <button class="tab-button" data-tab="panels" onclick="switchDeviceTab('panels')">
+                                    <i class="fas fa-tablet-alt mr-2"></i>控制面板
+                                </button>
+                                <button class="tab-button" data-tab="sensors" onclick="switchDeviceTab('sensors')">
+                                    <i class="fas fa-broadcast-tower mr-2"></i>传感器
+                                </button>
+                            </div>
+                            <div class="text-sm text-gray-400">
+                                <span>共 <span id="deviceCount" class="text-blue-400 font-medium">0</span> 个设备</span>
+                            </div>
+                        </div>
+
+                        <div id="devicesTabContent">
+                            <!-- 设备列表将动态加载 -->
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 加载默认标签页
+            switchDeviceTab('lights');
+        }
+
+        // 切换设备标签页
+        window.switchDeviceTab = function (tab) {
+            document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            const content = document.getElementById('devicesTabContent');
+            content.innerHTML = generateDevicesTable(tab);
+            updateDeviceCount(tab);
+        };
+
+        // 应用筛选
+        window.applyDeviceFilters = function () {
+            const spaceFilter = document.getElementById('spaceFilter')?.value || '';
+            const searchText = document.getElementById('deviceSearch')?.value.toLowerCase() || '';
+            const statusFilter = document.getElementById('statusFilter')?.value || '';
+
+            // 重新加载当前标签页，应用筛选条件
+            const activeTab = document.querySelector('.tab-button.active')?.dataset.tab || 'lights';
+            const content = document.getElementById('devicesTabContent');
+            content.innerHTML = generateDevicesTable(activeTab, { spaceFilter, searchText, statusFilter });
+            updateDeviceCount(activeTab);
+        };
+
+        // 清除筛选
+        window.clearDeviceFilters = function () {
+            document.getElementById('spaceFilter').value = '';
+            document.getElementById('deviceSearch').value = '';
+            document.getElementById('statusFilter').value = '';
+            applyDeviceFilters();
+        };
+
+        // 更新设备数量
+        function updateDeviceCount(tab) {
+            const rows = document.querySelectorAll('#devicesTabContent tbody tr');
+            document.getElementById('deviceCount').textContent = rows.length;
+        }
+
+        function generateDevicesTable(type = 'lights', filters = {}) {
+            const { spaceFilter = '', searchText = '', statusFilter = '' } = filters;
+
+            const allDevices = {
+                lights: [
+                    { id: 'L001', name: '大堂主灯#01', location: '1F-大堂', locationId: 'room-101', status: 'online', brightness: 85, colorTemp: 4000, power: 45, fadeTime: 1000, dimRange: [10, 100] },
+                    { id: 'L002', name: '会议室筒灯#12', location: '3F-会议室A', locationId: 'room-301', status: 'online', brightness: 100, colorTemp: 5000, power: 32, fadeTime: 800, dimRange: [20, 100] },
+                    { id: 'L003', name: '走廊灯带#23', location: '2F-走廊', locationId: 'room-201', status: 'offline', brightness: 0, colorTemp: 3000, power: 0, fadeTime: 1500, dimRange: [5, 100] },
+                    { id: 'L004', name: '展厅射灯#08', location: '1F-展厅', locationId: 'room-103', status: 'online', brightness: 75, colorTemp: 3500, power: 28, fadeTime: 500, dimRange: [15, 100] },
+                    { id: 'L005', name: '办公区面板灯#34', location: '3F-会议室B', locationId: 'room-302', status: 'warning', brightness: 90, colorTemp: 4500, power: 52, fadeTime: 1000, dimRange: [10, 100] }
+                ],
+                panels: [
+                    { id: 'P001', name: '智能面板#01', location: '1F-入口', locationId: 'room-101', status: 'online', buttons: 4, scenes: 8 },
+                    { id: 'P002', name: '智能面板#02', location: '3F-会议室', locationId: 'room-301', status: 'online', buttons: 6, scenes: 12 },
+                    { id: 'P003', name: '智能面板#03', location: '2F-休息区', locationId: 'room-202', status: 'offline', buttons: 4, scenes: 6 }
+                ],
+                sensors: [
+                    { id: 'S001', name: '光照传感器#01', location: '1F-大堂', locationId: 'room-101', status: 'online', value: '450 lux', battery: 85, linkedDevices: ['L001'] },
+                    { id: 'S002', name: '人体传感器#05', location: '3F-会议室', locationId: 'room-301', status: 'online', value: '已触发', battery: 92, linkedDevices: ['L002'] },
+                    { id: 'S003', name: 'CO₂传感器#03', location: '3F-会议室A', locationId: 'room-301', status: 'online', value: '580 ppm', battery: 78, linkedDevices: [] }
+                ]
+            };
+
+            let devices = allDevices[type] || [];
+
+            // 应用筛选
+            if (spaceFilter) {
+                devices = devices.filter(dev => dev.locationId === spaceFilter || dev.locationId.startsWith(spaceFilter));
+            }
+            if (searchText) {
+                devices = devices.filter(dev =>
+                    dev.name.toLowerCase().includes(searchText) ||
+                    dev.id.toLowerCase().includes(searchText)
+                );
+            }
+            if (statusFilter) {
+                devices = devices.filter(dev => dev.status === statusFilter);
+            }
+
+            if (type === 'lights') {
+                return `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>设备ID</th>
+                                <th>设备名称</th>
+                                <th>位置</th>
+                                <th>状态</th>
+                                <th>亮度</th>
+                                <th>色温</th>
+                                <th>功率</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${devices.length > 0 ? devices.map(dev => `
+                                <tr>
+                                    <td><code class="text-blue-400">${dev.id}</code></td>
+                                    <td class="font-medium text-white">${dev.name}</td>
+                                    <td class="text-gray-400">${dev.location}</td>
+                                    <td>
+                                        <span class="status-indicator status-${dev.status}"></span>
+                                        <span class="badge badge-${dev.status === 'online' ? 'success' : dev.status === 'warning' ? 'warning' : 'error'}">
+                                            ${dev.status === 'online' ? '在线' : dev.status === 'warning' ? '异常' : '离线'}
+                                        </span>
+                                    </td>
+                                    <td>${dev.brightness}%</td>
+                                    <td>${dev.colorTemp}K</td>
+                                    <td>${dev.power}W</td>
+                                    <td>
+                                        <div class="flex gap-2">
+                                            <button onclick="openDrawer('${dev.id}')" class="btn btn-secondary text-sm px-3 py-1" title="控制">
+                                                <i class="fas fa-sliders-h"></i>
+                                            </button>
+                                            <button onclick="editDeviceProperties('${dev.id}', '${type}')" class="btn btn-secondary text-sm px-3 py-1" title="编辑属性">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('') : '<tr><td colspan="8" class="text-center text-gray-400 py-8">未找到符合条件的设备</td></tr>'}
+                        </tbody>
+                    </table>
+                `;
+            } else if (type === 'panels') {
+                return `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>设备ID</th>
+                                <th>设备名称</th>
+                                <th>位置</th>
+                                <th>状态</th>
+                                <th>按键数</th>
+                                <th>场景数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${devices.length > 0 ? devices.map(dev => `
+                                <tr>
+                                    <td><code class="text-blue-400">${dev.id}</code></td>
+                                    <td class="font-medium text-white">${dev.name}</td>
+                                    <td class="text-gray-400">${dev.location}</td>
+                                    <td>
+                                        <span class="status-indicator status-${dev.status}"></span>
+                                        <span class="badge badge-${dev.status === 'online' ? 'success' : 'error'}">
+                                            ${dev.status === 'online' ? '在线' : '离线'}
+                                        </span>
+                                    </td>
+                                    <td>${dev.buttons}</td>
+                                    <td>${dev.scenes}</td>
+                                    <td>
+                                        <div class="flex gap-2">
+                                            <button onclick="configurePanelButtons('${dev.id}')" class="btn btn-secondary text-sm px-3 py-1" title="按键配置">
+                                                <i class="fas fa-cog"></i>
+                                            </button>
+                                            <button onclick="editDeviceProperties('${dev.id}', '${type}')" class="btn btn-secondary text-sm px-3 py-1" title="编辑属性">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('') : '<tr><td colspan="7" class="text-center text-gray-400 py-8">未找到符合条件的设备</td></tr>'}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                return `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>设备ID</th>
+                                <th>设备名称</th>
+                                <th>位置</th>
+                                <th>状态</th>
+                                <th>当前值</th>
+                                <th>电量</th>
+                                <th>联动设备</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${devices.length > 0 ? devices.map(dev => `
+                                <tr>
+                                    <td><code class="text-blue-400">${dev.id}</code></td>
+                                    <td class="font-medium text-white">${dev.name}</td>
+                                    <td class="text-gray-400">${dev.location}</td>
+                                    <td>
+                                        <span class="status-indicator status-${dev.status}"></span>
+                                        <span class="badge badge-success">在线</span>
+                                    </td>
+                                    <td class="text-blue-400">${dev.value}</td>
+                                    <td>${dev.battery}%</td>
+                                    <td>
+                                        ${dev.linkedDevices.length > 0
+                        ? `<span class="badge badge-info">${dev.linkedDevices.length}个</span>`
+                        : '<span class="text-gray-400">未联动</span>'}
+                                    </td>
+                                    <td>
+                                        <div class="flex gap-2">
+                                            <button onclick="configureSensorLinkage('${dev.id}')" class="btn btn-secondary text-sm px-3 py-1" title="联动配置">
+                                                <i class="fas fa-link"></i>
+                                            </button>
+                                            <button onclick="viewSensorData('${dev.id}')" class="btn btn-secondary text-sm px-3 py-1" title="数据">
+                                                <i class="fas fa-chart-line"></i>
+                                            </button>
+                                            <button onclick="editDeviceProperties('${dev.id}', '${type}')" class="btn btn-secondary text-sm px-3 py-1" title="编辑属性">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('') : '<tr><td colspan="8" class="text-center text-gray-400 py-8">未找到符合条件的设备</td></tr>'}
+                        </tbody>
+                    </table>
+                `;
+            }
+        }
+
+        function loadDeviceControls(deviceId) {
+            const drawerContent = document.getElementById('drawerContent');
+            drawerContent.innerHTML = `
+                <div class="space-y-6">
+                    <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-white">设备ID: ${deviceId}</span>
+                            <span class="badge badge-success">在线</span>
+                        </div>
+                        <p class="text-xs text-gray-400">大堂主灯 · 1F-大堂</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-3">开关控制</label>
+                        <div class="flex gap-3">
+                            <button class="btn btn-primary flex-1">
+                                <i class="fas fa-power-off"></i>
+                                <span>开启</span>
+                            </button>
+                            <button class="btn btn-secondary flex-1">
+                                <i class="fas fa-power-off"></i>
+                                <span>关闭</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-sm font-medium text-gray-400">亮度</label>
+                            <span class="text-white font-medium" id="brightnessValue">85%</span>
+                        </div>
+                        <input type="range" class="slider" min="0" max="100" value="85" 
+                               oninput="document.getElementById('brightnessValue').textContent = this.value + '%'">
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-sm font-medium text-gray-400">色温</label>
+                            <span class="text-white font-medium" id="colorTempValue">4000K</span>
+                        </div>
+                        <input type="range" class="slider" min="2700" max="6500" value="4000" step="100"
+                               oninput="document.getElementById('colorTempValue').textContent = this.value + 'K'">
+                        <div class="flex justify-between mt-2">
+                            <span class="text-xs text-gray-400">暖光</span>
+                            <span class="text-xs text-gray-400">冷光</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-3">RGB颜色</label>
+                        <div class="color-picker mb-4"></div>
+                        <div class="grid grid-cols-6 gap-2">
+                            ${['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'].map(color => `
+                                <button class="w-full h-10 rounded-lg border-2 border-white border-opacity-20 hover:border-opacity-50 transition-all"
+                                        style="background: ${color}"></button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-3">场景切换</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button class="btn btn-secondary">会议模式</button>
+                            <button class="btn btn-secondary">演示模式</button>
+                            <button class="btn btn-secondary">休息模式</button>
+                            <button class="btn btn-secondary">清洁模式</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-6 border-t border-gray-700">
+                        <button class="btn btn-primary w-full">
+                            <i class="fas fa-check"></i>
+                            <span>应用设置</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openAddDeviceModal() {
+            openModal('添加设备', `
+                <form onsubmit="handleAddDevice(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">设备类型</label>
+                        <select class="input-field" required>
+                            <option value="">选择设备类型</option>
+                            <option value="light">灯光设备</option>
+                            <option value="panel">控制面板</option>
+                            <option value="sensor">传感器</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
+                        <input type="text" class="input-field" placeholder="请输入设备名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
+                        <input type="text" class="input-field" placeholder="例如: 1F-大堂" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">设备ID</label>
+                        <input type="text" class="input-field" placeholder="自动生成或手动输入">
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">添加设备</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function handleAddDevice(event) {
+            event.preventDefault();
+            showNotification('设备添加成功！', 'success');
+            closeModal();
+        }
+
+        // 编辑设备属性
+        window.editDeviceProperties = function (deviceId, type) {
+            let formContent = '';
+
+            if (type === 'lights') {
+                formContent = `
+                    <form onsubmit="saveDeviceProperties(event, '${deviceId}', '${type}')" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
+                            <input type="text" class="input-field" value="大堂主灯#01" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
+                            <select class="input-field" required>
+                                <option value="room-101" selected>主楼 - 1F - 大堂</option>
+                                <option value="room-102">主楼 - 1F - 接待区</option>
+                                <option value="room-103">主楼 - 1F - 展厅</option>
+                                <option value="room-201">主楼 - 2F - 走廊</option>
+                                <option value="room-202">主楼 - 2F - 休息区</option>
+                                <option value="room-301">主楼 - 3F - 会议室A</option>
+                            </select>
+                        </div>
+                        <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                            <h4 class="text-sm font-bold text-white mb-4">灯光参数</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">渐变时长 (ms)</label>
+                                    <input type="number" class="input-field" value="1000" min="0" max="5000" step="100">
+                                    <p class="text-xs text-gray-400 mt-1">灯光开关或调光时的渐变时间</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">调光范围</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="text-xs text-gray-400">最小亮度 (%)</label>
+                                            <input type="number" class="input-field" value="10" min="0" max="100">
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-400">最大亮度 (%)</label>
+                                            <input type="number" class="input-field" value="100" min="0" max="100">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">色温范围</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="text-xs text-gray-400">最低色温 (K)</label>
+                                            <input type="number" class="input-field" value="2700" min="2000" max="6500" step="100">
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-400">最高色温 (K)</label>
+                                            <input type="number" class="input-field" value="6500" min="2000" max="6500" step="100">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                            <button type="submit" class="btn btn-primary flex-1">保存</button>
+                        </div>
+                    </form>
+                `;
+            } else {
+                formContent = `
+                    <form onsubmit="saveDeviceProperties(event, '${deviceId}', '${type}')" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
+                            <input type="text" class="input-field" value="设备#${deviceId}" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
+                            <select class="input-field" required>
+                                <option value="room-101">主楼 - 1F - 大堂</option>
+                                <option value="room-102">主楼 - 1F - 接待区</option>
+                                <option value="room-103">主楼 - 1F - 展厅</option>
+                                <option value="room-201">主楼 - 2F - 走廊</option>
+                                <option value="room-202">主楼 - 2F - 休息区</option>
+                                <option value="room-301">主楼 - 3F - 会议室A</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                            <button type="submit" class="btn btn-primary flex-1">保存</button>
+                        </div>
+                    </form>
+                `;
+            }
+
+            openModal('编辑设备属性', formContent);
+        };
+
+        window.saveDeviceProperties = function (event, deviceId, type) {
+            event.preventDefault();
+            showNotification(`设备 ${deviceId} 属性已更新`, 'success');
+            closeModal();
+            applyDeviceFilters();
+        };
+
+        // 配置面板按键
+        window.configurePanelButtons = function (panelId) {
+            const panelContent = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-white">面板 ID: ${panelId}</span>
+                            <span class="badge badge-success">在线</span>
+                        </div>
+                        <p class="text-xs text-gray-400">位置: 1F-入口 · 6个按键</p>
+                    </div>
+
+                    ${[1, 2, 3, 4, 5, 6].map(btnNum => `
+                        <div class="p-4 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-sm font-bold text-white">
+                                    <i class="fas fa-hand-pointer text-blue-400 mr-2"></i>
+                                    按键 ${btnNum}
+                                </h4>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" ${btnNum <= 4 ? 'checked' : ''}>
+                                    <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                            <select class="input-field mb-2" onchange="updateButtonAction(${btnNum}, this.value)">
+                                <option value="">选择功能</option>
+                                <option value="light-switch" ${btnNum === 1 ? 'selected' : ''}>灯光开关</option>
+                                <option value="light-dim" ${btnNum === 2 ? 'selected' : ''}>灯光调光</option>
+                                <option value="curtain" ${btnNum === 3 ? 'selected' : ''}>窗帘控制</option>
+                                <option value="scene" ${btnNum === 4 ? 'selected' : ''}>场景模式</option>
+                                <option value="custom">自定义</option>
+                            </select>
+                            <div id="buttonAction${btnNum}" class="text-xs text-gray-400">
+                                ${btnNum === 1 ? '控制: 大堂主灯#01' : btnNum === 2 ? '调光范围: 0-100%' : btnNum === 3 ? '控制: 大堂窗帘' : btnNum === 4 ? '场景: 会议模式' : '未配置'}
+                            </div>
+                        </div>
+                    `).join('')}
+
+                    <div class="flex gap-3 pt-4">
+                        <button onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button onclick="savePanelConfig('${panelId}')" class="btn btn-primary flex-1">
+                            <i class="fas fa-save"></i>
+                            <span>保存配置</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            openModal('面板按键配置', panelContent);
+        };
+
+        window.updateButtonAction = function (btnNum, action) {
+            const actionDiv = document.getElementById(`buttonAction${btnNum}`);
+            const actions = {
+                'light-switch': '控制: 选择灯光设备...',
+                'light-dim': '调光范围: 0-100%',
+                'curtain': '控制: 选择窗帘设备...',
+                'scene': '场景: 选择场景模式...',
+                'custom': '自定义功能...'
+            };
+            if (actionDiv) {
+                actionDiv.textContent = actions[action] || '未配置';
+            }
+        };
+
+        window.savePanelConfig = function (panelId) {
+            showNotification(`面板 ${panelId} 配置已保存`, 'success');
+            closeModal();
+        };
+
+        // 配置传感器联动
+        window.configureSensorLinkage = function (sensorId) {
+            const linkageContent = `
+                <div class="space-y-4">
+                    <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium text-white">传感器 ID: ${sensorId}</span>
+                            <span class="badge badge-success">在线</span>
+                        </div>
+                        <p class="text-xs text-gray-400">类型: 光照传感器 · 当前值: 450 lux</p>
+                    </div>
+
+                    <div class="p-4 bg-white bg-opacity-5 rounded-lg">
+                        <h4 class="text-sm font-bold text-white mb-4">
+                            <i class="fas fa-plus-circle text-green-400 mr-2"></i>
+                            新增联动规则
+                        </h4>
+                        <form onsubmit="addSensorLinkage(event, '${sensorId}')" class="space-y-4">
+                            <div class="p-4 bg-yellow-500 bg-opacity-10 rounded-lg border border-yellow-500 border-opacity-20">
+                                <label class="block text-sm font-medium text-white mb-3">
+                                    <i class="fas fa-hand-point-right mr-2"></i>
+                                    触发条件
+                                </label>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <select class="input-field" required>
+                                        <option value="">选择条件</option>
+                                        <option value="below">低于阈值</option>
+                                        <option value="above">高于阈值</option>
+                                        <option value="range">在范围内</option>
+                                        <option value="motion">检测到动作</option>
+                                        <option value="no-motion">未检测到动作</option>
+                                    </select>
+                                    <input type="number" class="input-field" placeholder="阈值 (lux)" value="100">
+                                </div>
+                                <div class="mt-3">
+                                    <label class="text-xs text-gray-400">持续时间 (秒)</label>
+                                    <input type="number" class="input-field" value="5" min="0">
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-green-500 bg-opacity-10 rounded-lg border border-green-500 border-opacity-20">
+                                <label class="block text-sm font-medium text-white mb-3">
+                                    <i class="fas fa-bolt mr-2"></i>
+                                    联动动作
+                                </label>
+                                <select class="input-field mb-3" required>
+                                    <option value="">选择动作</option>
+                                    <option value="light-on">开启灯光</option>
+                                    <option value="light-off">关闭灯光</option>
+                                    <option value="light-dim">调节亮度</option>
+                                    <option value="scene">执行场景</option>
+                                </select>
+                                <select class="input-field mb-3" required>
+                                    <option value="">选择目标设备</option>
+                                    <option value="L001">大堂主灯#01</option>
+                                    <option value="L002">会议室筒灯#12</option>
+                                    <option value="L003">走廊灯带#23</option>
+                                </select>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-xs text-gray-400">亮度 (%)</label>
+                                        <input type="number" class="input-field" value="80" min="0" max="100">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs text-gray-400">延迟 (秒)</label>
+                                        <input type="number" class="input-field" value="0" min="0">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-full">
+                                <i class="fas fa-plus"></i>
+                                <span>添加规则</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-bold text-white mb-3">
+                            <i class="fas fa-list text-purple-400 mr-2"></i>
+                            已有规则
+                        </h4>
+                        <div class="space-y-2">
+                            ${generateExistingLinkages()}
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 pt-4">
+                        <button onclick="closeModal()" class="btn btn-primary w-full">关闭</button>
+                    </div>
+                </div>
+            `;
+
+            openModal('传感器联动配置', linkageContent);
+        };
+
+        function generateExistingLinkages() {
+            const linkages = [
+                { condition: '光照 < 100 lux', action: '开启大堂主灯#01 至 80%', enabled: true }
+            ];
+
+            return linkages.map((link, index) => `
+                <div class="p-3 bg-white bg-opacity-5 rounded-lg flex items-center justify-between">
+                    <div class="flex-1">
+                        <p class="text-sm text-white mb-1">
+                            <span class="text-yellow-400">条件:</span> ${link.condition}
+                        </p>
+                        <p class="text-sm text-green-400">
+                            <span>动作:</span> ${link.action}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" ${link.enabled ? 'checked' : ''}>
+                            <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                        </label>
+                        <button onclick="deleteLinkage(${index})" class="text-red-400 hover:text-red-300">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.addSensorLinkage = function (event, sensorId) {
+            event.preventDefault();
+            showNotification('联动规则已添加', 'success');
+        };
+
+        window.deleteLinkage = function (index) {
+            if (confirm('确认删除该联动规则？')) {
+                showNotification('规则已删除', 'success');
+            }
+        };
+
+        // 设备组管理
+        window.openDeviceGroupManager = function () {
+            const groupContent = `
+                <div class="space-y-6">
+                    <!-- 组管理头部 -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-1">设备组管理</h3>
+                            <p class="text-sm text-gray-400">创建和管理设备分组，支持批量操作</p>
+                        </div>
+                        <button onclick="createNewDeviceGroup()" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            <span>新建组</span>
+                        </button>
+                    </div>
+
+                    <!-- 设备组列表 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${generateDeviceGroups()}
+                    </div>
+                </div>
+            `;
+
+            openModal('设备组管理', groupContent);
+        };
+
+        function generateDeviceGroups() {
+            const groups = [
+                {
+                    id: 'group-1',
+                    name: '大堂照明组',
+                    devices: ['L001', 'L004'],
+                    deviceCount: 2,
+                    icon: 'lightbulb',
+                    color: 'blue'
+                },
+                {
+                    id: 'group-2',
+                    name: '会议室系统',
+                    devices: ['L002', 'P002'],
+                    deviceCount: 2,
+                    icon: 'users',
+                    color: 'purple'
+                },
+                {
+                    id: 'group-3',
+                    name: '走廊照明',
+                    devices: ['L003'],
+                    deviceCount: 1,
+                    icon: 'arrows-alt-h',
+                    color: 'green'
+                }
+            ];
+
+            return groups.map(group => `
+                <div class="p-4 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-${group.color}-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-${group.icon} text-${group.color}-400"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-white">${group.name}</h4>
+                                <p class="text-xs text-gray-400">${group.deviceCount} 个设备</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="editDeviceGroup('${group.id}')" class="text-gray-400 hover:text-blue-400 transition-colors">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteDeviceGroup('${group.id}')" class="text-gray-400 hover:text-red-400 transition-colors">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${group.devices.map(devId => `
+                            <span class="badge badge-info text-xs">${devId}</span>
+                        `).join('')}
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="batchControlGroup('${group.id}', 'on')" class="btn btn-secondary text-xs flex-1">
+                            <i class="fas fa-power-off"></i>
+                            <span>开启</span>
+                        </button>
+                        <button onclick="batchControlGroup('${group.id}', 'off')" class="btn btn-secondary text-xs flex-1">
+                            <i class="fas fa-power-off"></i>
+                            <span>关闭</span>
+                        </button>
+                        <button onclick="viewGroupDetails('${group.id}')" class="btn btn-secondary text-xs flex-1">
+                            <i class="fas fa-info-circle"></i>
+                            <span>详情</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 创建新组
+        window.createNewDeviceGroup = function () {
+            const formContent = `
+                <form onsubmit="saveNewDeviceGroup(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">组名称</label>
+                        <input type="text" class="input-field" placeholder="请输入组名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">组图标</label>
+                        <select class="input-field" required>
+                            <option value="lightbulb">💡 灯光</option>
+                            <option value="users">👥 会议</option>
+                            <option value="couch">🛋️ 休息</option>
+                            <option value="utensils">🍴 餐饮</option>
+                            <option value="building">🏢 办公</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">选择设备</label>
+                        <div class="max-h-60 overflow-y-auto space-y-2 p-3 bg-black bg-opacity-20 rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white hover:bg-opacity-5 rounded">
+                                <input type="checkbox" class="form-checkbox" value="L001">
+                                <span class="text-sm text-white">大堂主灯#01</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white hover:bg-opacity-5 rounded">
+                                <input type="checkbox" class="form-checkbox" value="L002">
+                                <span class="text-sm text-white">会议室筒灯#12</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white hover:bg-opacity-5 rounded">
+                                <input type="checkbox" class="form-checkbox" value="L003">
+                                <span class="text-sm text-white">走廊灯带#23</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white hover:bg-opacity-5 rounded">
+                                <input type="checkbox" class="form-checkbox" value="P001">
+                                <span class="text-sm text-white">智能面板#01</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-white hover:bg-opacity-5 rounded">
+                                <input type="checkbox" class="form-checkbox" value="S001">
+                                <span class="text-sm text-white">光照传感器#01</span>
+                            </label>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">支持跨空间选择设备</p>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal(); openDeviceGroupManager();" class="btn btn-secondary flex-1">返回</button>
+                        <button type="submit" class="btn btn-primary flex-1">创建</button>
+                    </div>
+                </form>
+            `;
+
+            openModal('新建设备组', formContent);
+        };
+
+        window.saveNewDeviceGroup = function (event) {
+            event.preventDefault();
+            showNotification('设备组创建成功！', 'success');
+            closeModal();
+            openDeviceGroupManager();
+        };
+
+        // 编辑组
+        window.editDeviceGroup = function (groupId) {
+            showNotification(`编辑组: ${groupId}`, 'info');
+        };
+
+        // 删除组
+        window.deleteDeviceGroup = function (groupId) {
+            if (confirm('确认删除该设备组？不会删除组内的设备。')) {
+                showNotification('设备组已删除', 'success');
+                openDeviceGroupManager();
+            }
+        };
+
+        // 批量控制
+        window.batchControlGroup = function (groupId, action) {
+            const actionText = action === 'on' ? '开启' : '关闭';
+            showNotification(`正在${actionText}组内所有设备...`, 'info');
+            setTimeout(() => {
+                showNotification(`批量${actionText}完成`, 'success');
+            }, 1000);
+        };
+
+        // 查看组详情
+        window.viewGroupDetails = function (groupId) {
+            showNotification(`查看组详情: ${groupId}`, 'info');
+        };
+
+        // ==================== 场景管理页面 ====================
+        function loadScenes() {
+            pageTitle.textContent = '场景管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card mb-6">
+                        <!-- 筛选工具栏 -->
+                        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
+                            <div class="flex gap-3 flex-1">
+                                <!-- 位置筛选 -->
+                                <select id="sceneLocationFilter" class="input-field" style="width: 200px;" onchange="filterScenes()">
+                                    <option value="">全部位置</option>
+                                    <option value="floor-1">主楼 - 1F</option>
+                                    <option value="room-101">主楼 - 1F - 大堂</option>
+                                    <option value="room-102">主楼 - 1F - 接待区</option>
+                                    <option value="room-103">主楼 - 1F - 展厅</option>
+                                    <option value="floor-2">主楼 - 2F</option>
+                                    <option value="room-201">主楼 - 2F - 走廊</option>
+                                    <option value="room-202">主楼 - 2F - 休息区</option>
+                                    <option value="floor-3">主楼 - 3F</option>
+                                    <option value="room-301">主楼 - 3F - 会议室A</option>
+                                    <option value="room-302">主楼 - 3F - 会议室B</option>
+                                </select>
+                                
+                                <!-- 名称搜索 -->
+                                <div class="relative flex-1" style="max-width: 300px;">
+                                    <input type="text" id="sceneSearch" class="input-field" placeholder="搜索场景名称..." 
+                                           oninput="filterScenes()" style="padding-right: 40px;">
+                                    <i class="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                </div>
+                                
+                                <button onclick="clearSceneFilters()" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i>
+                                    <span>清除筛选</span>
+                                </button>
+                            </div>
+                            <button onclick="openCreateSceneModal()" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                <span>创建场景</span>
+                            </button>
+                        </div>
+
+                        <!-- 场景列表 -->
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-bold text-white">场景列表</h3>
+                                <span class="text-sm text-gray-400">共 <span id="sceneCount" class="text-blue-400 font-medium">0</span> 个场景</span>
+                            </div>
+                            <div id="scenesContainer">
+                                <!-- 场景列表将动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 场景预设库 -->
+                    <div class="card">
+                        <h3 class="text-lg font-bold text-white mb-6">场景预设库</h3>
+                        <div class="space-y-3">
+                            ${generateScenePresets()}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // 加载场景列表
+            filterScenes();
+        }
+
+        // 场景数据存储
+        const scenesData = [
+            { id: 'scene-001', name: '会议室-演示模式', location: '主楼 - 3F - 会议室A', locationId: 'room-301', devices: 12, brightness: 100, colorTemp: 5000, icon: 'presentation', color: 'blue' },
+            { id: 'scene-002', name: '大堂-欢迎模式', location: '主楼 - 1F - 大堂', locationId: 'room-101', devices: 24, brightness: 80, colorTemp: 4000, icon: 'door-open', color: 'green' },
+            { id: 'scene-003', name: '办公区-工作模式', location: '主楼 - 3F - 会议室B', locationId: 'room-302', devices: 56, brightness: 90, colorTemp: 4500, icon: 'briefcase', color: 'purple' },
+            { id: 'scene-004', name: '展厅-展示模式', location: '主楼 - 1F - 展厅', locationId: 'room-103', devices: 18, brightness: 95, colorTemp: 3500, icon: 'star', color: 'yellow' },
+            { id: 'scene-005', name: '餐厅-用餐模式', location: '主楼 - 2F - 休息区', locationId: 'room-202', devices: 32, brightness: 70, colorTemp: 3000, icon: 'utensils', color: 'orange' },
+            { id: 'scene-006', name: '休息区-放松模式', location: '主楼 - 2F - 休息区', locationId: 'room-202', devices: 15, brightness: 50, colorTemp: 2700, icon: 'couch', color: 'indigo' }
+        ];
+
+        // 筛选场景
+        window.filterScenes = function () {
+            const locationFilter = document.getElementById('sceneLocationFilter')?.value || '';
+            const searchText = document.getElementById('sceneSearch')?.value.toLowerCase() || '';
+
+            const filteredScenes = scenesData.filter(scene => {
+                const matchLocation = !locationFilter || scene.locationId === locationFilter || scene.locationId.startsWith(locationFilter);
+                const matchSearch = !searchText || scene.name.toLowerCase().includes(searchText) || scene.location.toLowerCase().includes(searchText);
+                return matchLocation && matchSearch;
+            });
+
+            const container = document.getElementById('scenesContainer');
+            const countElement = document.getElementById('sceneCount');
+
+            if (countElement) {
+                countElement.textContent = filteredScenes.length;
+            }
+
+            if (filteredScenes.length === 0) {
+                container.innerHTML = '<div class="text-center py-16 text-gray-400"><i class="fas fa-inbox text-5xl mb-4 opacity-50"></i><p>没有找到匹配的场景</p></div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    ${filteredScenes.map(scene => `
+                        <div class="p-4 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex items-center gap-3 flex-1">
+                                    <div class="w-10 h-10 bg-${scene.color}-500 bg-opacity-20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-${scene.icon} text-${scene.color}-400"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h4 class="text-sm font-bold text-white mb-1 truncate">${scene.name}</h4>
+                                        <p class="text-xs text-gray-400 mb-1">
+                                            <i class="fas fa-map-marker-alt mr-1"></i>${scene.location}
+                                        </p>
+                                        <p class="text-xs text-gray-400">${scene.devices} 个设备</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2 text-xs mb-3 p-3 bg-black bg-opacity-20 rounded">
+                                <div>
+                                    <span class="text-gray-400">亮度:</span>
+                                    <span class="text-white ml-1 font-medium">${scene.brightness}%</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400">色温:</span>
+                                    <span class="text-white ml-1 font-medium">${scene.colorTemp}K</span>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button onclick="executeScene('${scene.id}')" class="btn btn-primary text-xs flex-1" title="执行场景">
+                                    <i class="fas fa-play"></i>
+                                    <span>执行</span>
+                                </button>
+                                <button onclick="editScene('${scene.id}')" class="btn btn-secondary text-xs flex-1" title="编辑场景">
+                                    <i class="fas fa-edit"></i>
+                                    <span>编辑</span>
+                                </button>
+                                <button onclick="deleteScene('${scene.id}')" class="btn btn-secondary text-xs px-3" title="删除场景">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        };
+
+        // 清除筛选
+        window.clearSceneFilters = function () {
+            document.getElementById('sceneLocationFilter').value = '';
+            document.getElementById('sceneSearch').value = '';
+            filterScenes();
+        };
+
+        function generateScenePresets() {
+            const presets = [
+                { name: '商场模式', icon: 'shopping-cart', color: 'blue' },
+                { name: '酒店模式', icon: 'hotel', color: 'purple' },
+                { name: '办公模式', icon: 'building', color: 'green' },
+                { name: '餐饮模式', icon: 'utensils', color: 'orange' },
+                { name: '展览模式', icon: 'image', color: 'pink' },
+                { name: '清洁模式', icon: 'broom', color: 'yellow' }
+            ];
+
+            return presets.map(preset => `
+                <button onclick="applyPreset('${preset.name}')" class="w-full p-3 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all text-left">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-${preset.color}-500 bg-opacity-20 rounded flex items-center justify-center">
+                            <i class="fas fa-${preset.icon} text-${preset.color}-400 text-sm"></i>
+                        </div>
+                        <span class="text-sm text-white">${preset.name}</span>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        function openCreateSceneModal() {
+            openModal('创建场景', `
+                <form onsubmit="handleCreateScene(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">场景名称 *</label>
+                        <input type="text" id="sceneName" class="input-field" placeholder="请输入场景名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">所属位置 *</label>
+                        <select id="sceneLocation" class="input-field" required>
+                            <option value="">选择位置</option>
+                            <option value="room-101">主楼 - 1F - 大堂</option>
+                            <option value="room-102">主楼 - 1F - 接待区</option>
+                            <option value="room-103">主楼 - 1F - 展厅</option>
+                            <option value="room-201">主楼 - 2F - 走廊</option>
+                            <option value="room-202">主楼 - 2F - 休息区</option>
+                            <option value="room-301">主楼 - 3F - 会议室A</option>
+                            <option value="room-302">主楼 - 3F - 会议室B</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">场景类型</label>
+                        <select class="input-field" required>
+                            <option value="static">静态场景</option>
+                            <option value="dynamic">动态场景</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">选择设备</label>
+                        <div class="max-h-40 overflow-y-auto space-y-2 p-3 bg-white bg-opacity-5 rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="form-checkbox">
+                                <span class="text-sm text-white">大堂主灯#01</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="form-checkbox">
+                                <span class="text-sm text-white">会议室筒灯#12</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" class="form-checkbox">
+                                <span class="text-sm text-white">走廊灯带#23</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">亮度 (%)</label>
+                            <input type="number" id="sceneBrightness" class="input-field" value="80" min="0" max="100">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">色温 (K)</label>
+                            <input type="number" id="sceneColorTemp" class="input-field" value="4000" min="2700" max="6500" step="100">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">创建场景</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function handleCreateScene(event) {
+            event.preventDefault();
+            showNotification('场景创建成功！', 'success');
+            closeModal();
+            loadScenes();
+        }
+
+        function executeScene(sceneName) {
+            showNotification(`执行场景: ${sceneName}`, 'success');
+        }
+
+        // 编辑场景
+        window.editScene = function (sceneId) {
+            const scene = scenesData.find(s => s.id === sceneId);
+            if (!scene) {
+                showNotification('场景不存在', 'error');
+                return;
+            }
+
+            openModal('编辑场景', `
+                <form onsubmit="handleEditScene(event, '${sceneId}')" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">场景名称 *</label>
+                        <input type="text" id="editSceneName" class="input-field" value="${scene.name}" placeholder="请输入场景名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">所属位置 *</label>
+                        <select id="editSceneLocation" class="input-field" required>
+                            <option value="room-101" ${scene.locationId === 'room-101' ? 'selected' : ''}>主楼 - 1F - 大堂</option>
+                            <option value="room-102" ${scene.locationId === 'room-102' ? 'selected' : ''}>主楼 - 1F - 接待区</option>
+                            <option value="room-103" ${scene.locationId === 'room-103' ? 'selected' : ''}>主楼 - 1F - 展厅</option>
+                            <option value="room-201" ${scene.locationId === 'room-201' ? 'selected' : ''}>主楼 - 2F - 走廊</option>
+                            <option value="room-202" ${scene.locationId === 'room-202' ? 'selected' : ''}>主楼 - 2F - 休息区</option>
+                            <option value="room-301" ${scene.locationId === 'room-301' ? 'selected' : ''}>主楼 - 3F - 会议室A</option>
+                            <option value="room-302" ${scene.locationId === 'room-302' ? 'selected' : ''}>主楼 - 3F - 会议室B</option>
+                        </select>
+                    </div>
+                    
+                    <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-30">
+                        <h4 class="text-sm font-medium text-white mb-3">
+                            <i class="fas fa-sliders-h mr-2"></i>设备参数设置
+                        </h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">选择设备</label>
+                                <div class="max-h-32 overflow-y-auto space-y-2 p-3 bg-white bg-opacity-5 rounded-lg">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="form-checkbox" checked>
+                                        <span class="text-sm text-white">大堂主灯#01</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="form-checkbox" checked>
+                                        <span class="text-sm text-white">会议室筒灯#12</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="form-checkbox">
+                                        <span class="text-sm text-white">走廊灯带#23</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="form-checkbox">
+                                        <span class="text-sm text-white">展厅射灯#15</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">
+                                        <i class="fas fa-sun mr-1"></i>亮度 (%)
+                                    </label>
+                                    <input type="number" id="editSceneBrightness" class="input-field" value="${scene.brightness}" min="0" max="100">
+                                    <input type="range" class="w-full mt-2" value="${scene.brightness}" min="0" max="100" 
+                                           oninput="document.getElementById('editSceneBrightness').value = this.value">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">
+                                        <i class="fas fa-thermometer-half mr-1"></i>色温 (K)
+                                    </label>
+                                    <input type="number" id="editSceneColorTemp" class="input-field" value="${scene.colorTemp}" min="2700" max="6500" step="100">
+                                    <input type="range" class="w-full mt-2" value="${scene.colorTemp}" min="2700" max="6500" step="100"
+                                           oninput="document.getElementById('editSceneColorTemp').value = this.value">
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">
+                                    <i class="fas fa-clock mr-1"></i>渐变时长 (ms)
+                                </label>
+                                <input type="number" id="editSceneTransition" class="input-field" value="500" min="0" max="5000" step="100">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">
+                            <i class="fas fa-save mr-2"></i>保存修改
+                        </button>
+                    </div>
+                </form>
+            `);
+        };
+
+        // 处理编辑场景
+        window.handleEditScene = function (event, sceneId) {
+            event.preventDefault();
+
+            const name = document.getElementById('editSceneName').value;
+            const locationId = document.getElementById('editSceneLocation').value;
+            const brightness = document.getElementById('editSceneBrightness').value;
+            const colorTemp = document.getElementById('editSceneColorTemp').value;
+
+            // 查找并更新场景数据
+            const sceneIndex = scenesData.findIndex(s => s.id === sceneId);
+            if (sceneIndex !== -1) {
+                scenesData[sceneIndex].name = name;
+                scenesData[sceneIndex].locationId = locationId;
+                scenesData[sceneIndex].location = document.getElementById('editSceneLocation').selectedOptions[0].text;
+                scenesData[sceneIndex].brightness = parseInt(brightness);
+                scenesData[sceneIndex].colorTemp = parseInt(colorTemp);
+            }
+
+            showNotification(`场景 "${name}" 修改成功！`, 'success');
+            closeModal();
+            filterScenes(); // 重新加载场景列表
+        };
+
+        // 删除场景
+        window.deleteScene = function (sceneId) {
+            const scene = scenesData.find(s => s.id === sceneId);
+            if (!scene) {
+                showNotification('场景不存在', 'error');
+                return;
+            }
+
+            if (confirm(`确定要删除场景 "${scene.name}" 吗？`)) {
+                const index = scenesData.findIndex(s => s.id === sceneId);
+                if (index !== -1) {
+                    scenesData.splice(index, 1);
+                }
+                showNotification(`场景 "${scene.name}" 已删除`, 'success');
+                filterScenes(); // 重新加载场景列表
+            }
+        };
+
+        function applyPreset(presetName) {
+            showNotification(`应用预设: ${presetName}`, 'info');
+        }
+
+        // ==================== 定时管理页面 ====================
+        function loadSchedules() {
+            pageTitle.textContent = '定时管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-white">定时任务列表</h3>
+                            <button onclick="openCreateScheduleModal()" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                <span>创建定时</span>
+                            </button>
+                        </div>
+                        ${generateSchedulesTable()}
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateSchedulesTable() {
+            const schedules = [
+                { name: '早晨开灯', time: '07:00', days: '工作日', scene: '办公区-工作模式', status: 'active' },
+                { name: '午休调光', time: '12:00', days: '每天', scene: '办公区-休息模式', status: 'active' },
+                { name: '下班关灯', time: '18:30', days: '工作日', scene: '关闭所有灯具', status: 'active' },
+                { name: '夜间保安模式', time: '22:00', days: '每天', scene: '走廊-安保模式', status: 'active' },
+                { name: '周末展厅开放', time: '09:00', days: '周末', scene: '展厅-展示模式', status: 'paused' }
+            ];
+
+            return `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>任务名称</th>
+                            <th>执行时间</th>
+                            <th>执行日期</th>
+                            <th>关联场景</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${schedules.map(schedule => `
+                            <tr>
+                                <td class="font-medium text-white">${schedule.name}</td>
+                                <td class="text-blue-400"><i class="fas fa-clock mr-2"></i>${schedule.time}</td>
+                                <td class="text-gray-400">${schedule.days}</td>
+                                <td>${schedule.scene}</td>
+                                <td>
+                                    <span class="badge badge-${schedule.status === 'active' ? 'success' : 'warning'}">
+                                        ${schedule.status === 'active' ? '运行中' : '已暂停'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="flex gap-2">
+                                        <button class="btn btn-secondary text-xs px-3 py-1">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-secondary text-xs px-3 py-1">
+                                            <i class="fas fa-${schedule.status === 'active' ? 'pause' : 'play'}"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function openCreateScheduleModal() {
+            openModal('创建定时任务', `
+                <form onsubmit="handleCreateSchedule(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">任务名称</label>
+                        <input type="text" class="input-field" placeholder="请输入任务名称" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">执行时间</label>
+                        <input type="time" class="input-field" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">执行日期</label>
+                        <select class="input-field" required>
+                            <option value="everyday">每天</option>
+                            <option value="weekdays">工作日</option>
+                            <option value="weekend">周末</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">关联场景</label>
+                        <select class="input-field" required>
+                            <option value="">选择场景</option>
+                            <option value="scene1">办公区-工作模式</option>
+                            <option value="scene2">大堂-欢迎模式</option>
+                            <option value="scene3">会议室-演示模式</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">创建任务</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function handleCreateSchedule(event) {
+            event.preventDefault();
+            showNotification('定时任务创建成功！', 'success');
+            closeModal();
+            loadSchedules();
+        }
+
+        // ==================== 自动化管理页面 ====================
+        function loadAutomation() {
+            pageTitle.textContent = '自动化管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card mb-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 class="text-lg font-bold text-white mb-2">自动化规则</h3>
+                                <p class="text-sm text-gray-400">基于条件触发的智能控制</p>
+                            </div>
+                            <button onclick="openCreateAutomationModal()" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                <span>创建规则</span>
+                            </button>
+                        </div>
+                        ${generateAutomationCards()}
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateAutomationCards() {
+            const automations = [
+                {
+                    name: '智能节能模式',
+                    condition: '光照度 < 100 lux',
+                    action: '开启区域灯具至 60%',
+                    status: 'active',
+                    triggers: 156
+                },
+                {
+                    name: '人体感应开关',
+                    condition: '人体检测 > 30分钟未触发',
+                    action: '关闭灯具',
+                    status: 'active',
+                    triggers: 892
+                },
+                {
+                    name: '温度联动调光',
+                    condition: '温度 > 28°C',
+                    action: '色温调至 6000K (冷光)',
+                    status: 'active',
+                    triggers: 34
+                },
+                {
+                    name: '夜间自动巡检',
+                    condition: '时间 = 02:00',
+                    action: '依次点亮各区域灯具检测状态',
+                    status: 'paused',
+                    triggers: 28
+                }
+            ];
+
+            return `
+                <div class="space-y-4">
+                    ${automations.map(auto => `
+                        <div class="p-5 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                            <div class="flex items-start justify-between mb-4">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h4 class="text-lg font-bold text-white">${auto.name}</h4>
+                                        <span class="badge badge-${auto.status === 'active' ? 'success' : 'warning'}">
+                                            ${auto.status === 'active' ? '运行中' : '已暂停'}
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-gray-400 mb-3">已触发 ${auto.triggers} 次</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-secondary text-sm px-3 py-1">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-secondary text-sm px-3 py-1">
+                                        <i class="fas fa-${auto.status === 'active' ? 'pause' : 'play'}"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-black bg-opacity-20 rounded-lg">
+                                <div>
+                                    <p class="text-xs text-gray-400 mb-1">IF 条件</p>
+                                    <p class="text-sm text-blue-400"><i class="fas fa-check-circle mr-2"></i>${auto.condition}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 mb-1">THEN 动作</p>
+                                    <p class="text-sm text-green-400"><i class="fas fa-arrow-right mr-2"></i>${auto.action}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function openCreateAutomationModal() {
+            openModal('创建自动化规则', `
+                <form onsubmit="handleCreateAutomation(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">规则名称</label>
+                        <input type="text" class="input-field" placeholder="请输入规则名称" required>
+                    </div>
+                    <div class="p-4 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20">
+                        <h4 class="text-sm font-bold text-white mb-3">IF 触发条件</h4>
+                        <select class="input-field mb-3" required>
+                            <option value="">选择触发类型</option>
+                            <option value="sensor">传感器触发</option>
+                            <option value="time">时间触发</option>
+                            <option value="device">设备状态</option>
+                        </select>
+                        <input type="text" class="input-field" placeholder="例如: 光照度 < 100 lux" required>
+                    </div>
+                    <div class="p-4 bg-green-500 bg-opacity-10 rounded-lg border border-green-500 border-opacity-20">
+                        <h4 class="text-sm font-bold text-white mb-3">THEN 执行动作</h4>
+                        <select class="input-field mb-3" required>
+                            <option value="">选择动作类型</option>
+                            <option value="scene">执行场景</option>
+                            <option value="control">设备控制</option>
+                            <option value="notify">发送通知</option>
+                        </select>
+                        <input type="text" class="input-field" placeholder="例如: 开启区域灯具至 60%" required>
+                    </div>
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" onclick="closeModal()" class="btn btn-secondary flex-1">取消</button>
+                        <button type="submit" class="btn btn-primary flex-1">创建规则</button>
+                    </div>
+                </form>
+            `);
+        }
+
+        function handleCreateAutomation(event) {
+            event.preventDefault();
+            showNotification('自动化规则创建成功！', 'success');
+            closeModal();
+            loadAutomation();
+        }
+
+        // ==================== 能耗分析页面 ====================
+        function loadAnalytics() {
+            pageTitle.textContent = '能耗分析';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                        <div class="card">
+                            <p class="text-sm text-gray-400 mb-2">今日能耗</p>
+                            <h3 class="text-3xl font-bold text-white mb-1">3,847</h3>
+                            <p class="text-sm text-green-400"><i class="fas fa-arrow-down mr-1"></i>12% vs 昨日</p>
+                        </div>
+                        <div class="card">
+                            <p class="text-sm text-gray-400 mb-2">本月能耗</p>
+                            <h3 class="text-3xl font-bold text-white mb-1">98,234</h3>
+                            <p class="text-sm text-blue-400">kWh</p>
+                        </div>
+                        <div class="card">
+                            <p class="text-sm text-gray-400 mb-2">本月费用</p>
+                            <h3 class="text-3xl font-bold text-white mb-1">¥56,789</h3>
+                            <p class="text-sm text-yellow-400">电价 0.58元/度</p>
+                        </div>
+                        <div class="card">
+                            <p class="text-sm text-gray-400 mb-2">节能率</p>
+                            <h3 class="text-3xl font-bold text-green-400 mb-1">23.5%</h3>
+                            <p class="text-sm text-gray-400">vs 去年同期</p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-white">能耗趋势分析</h3>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary text-sm">日</button>
+                                <button class="btn btn-primary text-sm">周</button>
+                                <button class="btn btn-secondary text-sm">月</button>
+                                <button class="btn btn-secondary text-sm">年</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <div class="flex items-end justify-between h-full gap-3">
+                                ${[45, 52, 48, 65, 58, 72, 68, 55, 62, 58, 50, 45, 52, 60].map(height => `
+                                    <div class="flex-1 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t hover:from-blue-400 hover:to-blue-300 transition-all cursor-pointer" 
+                                         style="height: ${height}%" title="${(height * 50).toFixed(0)} kWh"></div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">区域能耗分布</h3>
+                            ${generateEnergyDistribution()}
+                        </div>
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">能耗排行 Top 10</h3>
+                            ${generateEnergyRanking()}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateEnergyDistribution() {
+            const areas = [
+                { name: '办公区', percentage: 35, value: 34389 },
+                { name: '大堂', percentage: 25, value: 24567 },
+                { name: '会议室', percentage: 18, value: 17682 },
+                { name: '走廊', percentage: 12, value: 11788 },
+                { name: '其他', percentage: 10, value: 9808 }
+            ];
+
+            return `
+                <div class="space-y-4">
+                    ${areas.map(area => `
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-white">${area.name}</span>
+                                <span class="text-sm font-medium text-blue-400">${area.value} kWh (${area.percentage}%)</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${area.percentage}%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function generateEnergyRanking() {
+            const devices = [
+                { name: '4F办公区面板灯#34', energy: 2847 },
+                { name: '1F大堂主灯#01', energy: 2156 },
+                { name: '3F会议室筒灯组', energy: 1893 },
+                { name: '2F走廊灯带#23', energy: 1654 },
+                { name: '1F展厅射灯组', energy: 1432 },
+                { name: '5F办公区灯具#45', energy: 1287 },
+                { name: '3F会议室#B灯组', energy: 1156 },
+                { name: '2F休息区灯具', energy: 1089 },
+                { name: '1F接待台灯光', energy: 987 },
+                { name: '地下停车场照明', energy: 845 }
+            ];
+
+            return `
+                <div class="space-y-2">
+                    ${devices.map((device, index) => `
+                        <div class="flex items-center gap-3 p-3 bg-white bg-opacity-5 rounded-lg hover:bg-opacity-10 transition-all">
+                            <div class="w-6 h-6 rounded-full ${index < 3 ? 'bg-yellow-500' : 'bg-gray-600'} flex items-center justify-center text-xs font-bold text-white">
+                                ${index + 1}
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm text-white">${device.name}</p>
+                            </div>
+                            <span class="text-sm font-medium text-blue-400">${device.energy} kWh</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // ==================== 其他页面占位函数 ====================
+        function loadLogs() {
+            pageTitle.textContent = '日志系统';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-white">系统日志</h3>
+                            <div class="flex gap-3">
+                                <select class="input-field" style="width: auto;">
+                                    <option>全部类型</option>
+                                    <option>操作日志</option>
+                                    <option>设备日志</option>
+                                    <option>告警日志</option>
+                                </select>
+                                <button class="btn btn-secondary">
+                                    <i class="fas fa-download"></i>
+                                    <span>导出日志</span>
+                                </button>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>类型</th>
+                                    <th>设备/用户</th>
+                                    <th>操作内容</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-gray-400">2026-01-08 14:23:15</td>
+                                    <td><span class="badge badge-info">操作</span></td>
+                                    <td>admin</td>
+                                    <td>执行场景: 会议室-演示模式</td>
+                                    <td><span class="badge badge-success">成功</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-gray-400">2026-01-08 14:15:32</td>
+                                    <td><span class="badge badge-warning">告警</span></td>
+                                    <td>设备 L003</td>
+                                    <td>设备离线告警</td>
+                                    <td><span class="badge badge-error">异常</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-gray-400">2026-01-08 14:05:48</td>
+                                    <td><span class="badge badge-info">操作</span></td>
+                                    <td>admin</td>
+                                    <td>创建定时任务: 早晨开灯</td>
+                                    <td><span class="badge badge-success">成功</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadOTA() {
+            pageTitle.textContent = '固件升级';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card">
+                        <h3 class="text-lg font-bold text-white mb-6">固件升级管理</h3>
+                        <div class="p-6 bg-blue-500 bg-opacity-10 rounded-lg border border-blue-500 border-opacity-20 text-center">
+                            <i class="fas fa-cloud-upload-alt text-blue-400 text-5xl mb-4"></i>
+                            <p class="text-white mb-2">固件升级功能</p>
+                            <p class="text-sm text-gray-400">支持批量OTA升级、版本管理、回滚机制</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadUsers() {
+            pageTitle.textContent = '用户管理';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="card">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-white">用户与权限</h3>
+                            <button class="btn btn-primary">
+                                <i class="fas fa-user-plus"></i>
+                                <span>添加用户</span>
+                            </button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>邮箱</th>
+                                    <th>角色</th>
+                                    <th>权限</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="font-medium text-white">admin</td>
+                                    <td>admin@smartlight.com</td>
+                                    <td><span class="badge badge-error">超级管理员</span></td>
+                                    <td>全部权限</td>
+                                    <td><span class="badge badge-success">激活</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary text-xs px-3 py-1">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-medium text-white">张经理</td>
+                                    <td>zhang@company.com</td>
+                                    <td><span class="badge badge-info">项目经理</span></td>
+                                    <td>项目管理</td>
+                                    <td><span class="badge badge-success">激活</span></td>
+                                    <td>
+                                        <button class="btn btn-secondary text-xs px-3 py-1">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadCADImport() {
+            pageTitle.textContent = 'CAD图纸导入';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">
+                                <i class="fas fa-file-import text-blue-400 mr-2"></i>
+                                CAD文件导入
+                            </h3>
+                            <div class="border-2 border-dashed border-gray-600 rounded-lg p-12 text-center hover:border-blue-500 transition-all cursor-pointer">
+                                <i class="fas fa-cloud-upload-alt text-gray-400 text-5xl mb-4"></i>
+                                <p class="text-white mb-2">拖拽文件到此处或点击上传</p>
+                                <p class="text-sm text-gray-400">支持 .dxf, .dwg 格式</p>
+                                <button class="btn btn-primary mt-4">
+                                    <i class="fas fa-folder-open"></i>
+                                    <span>选择文件</span>
+                                </button>
+                            </div>
+
+                            <div class="mt-6 p-4 bg-yellow-500 bg-opacity-10 rounded-lg border border-yellow-500 border-opacity-20">
+                                <p class="text-sm text-yellow-400 mb-2">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                                    CAD绘图标准要求
+                                </p>
+                                <ul class="text-xs text-gray-400 space-y-1 ml-6">
+                                    <li>• 灯具需放置在指定图层 (LIGHT)</li>
+                                    <li>• 区域边界使用闭合多段线</li>
+                                    <li>• 设备需包含类型、型号等属性</li>
+                                    <li>• 坐标系统需统一</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">
+                                <i class="fas fa-cogs text-green-400 mr-2"></i>
+                                智能解析配置
+                            </h3>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">图层映射规则</label>
+                                    <div class="space-y-2">
+                                        <div class="flex gap-3">
+                                            <input type="text" class="input-field flex-1" placeholder="CAD图层名" value="LIGHT">
+                                            <span class="flex items-center text-gray-400">→</span>
+                                            <select class="input-field flex-1">
+                                                <option>灯具设备</option>
+                                                <option>控制面板</option>
+                                                <option>传感器</option>
+                                            </select>
+                                        </div>
+                                        <div class="flex gap-3">
+                                            <input type="text" class="input-field flex-1" placeholder="CAD图层名" value="AREA">
+                                            <span class="flex items-center text-gray-400">→</span>
+                                            <select class="input-field flex-1">
+                                                <option>区域边界</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">设备识别规则</label>
+                                    <select class="input-field">
+                                        <option>按图块名称识别</option>
+                                        <option>按属性字段识别</option>
+                                        <option>按图层+图块组合</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">坐标转换</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input type="number" class="input-field" placeholder="X偏移" value="0">
+                                        <input type="number" class="input-field" placeholder="Y偏移" value="0">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">比例设置</label>
+                                    <input type="number" class="input-field" placeholder="1:100" value="100" step="1">
+                                </div>
+
+                                <button class="btn btn-primary w-full mt-6">
+                                    <i class="fas fa-magic"></i>
+                                    <span>开始解析</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-6">
+                        <h3 class="text-lg font-bold text-white mb-6">
+                            <i class="fas fa-list text-purple-400 mr-2"></i>
+                            解析结果预览
+                        </h3>
+                        <div class="text-center py-12 text-gray-400">
+                            <i class="fas fa-inbox text-5xl mb-4 opacity-50"></i>
+                            <p>暂无解析结果</p>
+                            <p class="text-sm mt-2">请先上传并解析CAD文件</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadSettings() {
+            pageTitle.textContent = '系统设置';
+            pageContent.innerHTML = `
+                <div class="fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">基本设置</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">系统名称</label>
+                                    <input type="text" class="input-field" value="SmartLight Pro">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">语言</label>
+                                    <select class="input-field">
+                                        <option>简体中文</option>
+                                        <option>English</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">时区</label>
+                                    <select class="input-field">
+                                        <option>北京时间 (UTC+8)</option>
+                                        <option>东京时间 (UTC+9)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">网关配置</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">网关地址</label>
+                                    <input type="text" class="input-field" value="192.168.1.100">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">通信协议</label>
+                                    <select class="input-field">
+                                        <option>Modbus TCP</option>
+                                        <option>KNX</option>
+                                        <option>BACnet</option>
+                                        <option>DALI</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-2">端口</label>
+                                    <input type="number" class="input-field" value="502">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 class="text-lg font-bold text-white mb-6">第三方集成</h3>
+                            <div class="space-y-3">
+                                <div class="p-3 bg-white bg-opacity-5 rounded-lg flex items-center justify-between">
+                                    <span class="text-sm text-white">酒店PMS系统</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                </div>
+                                <div class="p-3 bg-white bg-opacity-5 rounded-lg flex items-center justify-between">
+                                    <span class="text-sm text-white">楼宇自控BMS</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                </div>
+                                <div class="p-3 bg-white bg-opacity-5 rounded-lg flex items-center justify-between">
+                                    <span class="text-sm text-white">能源管理EMS</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" class="sr-only peer" checked>
+                                        <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-bold text-white mb-2">保存设置</h3>
+                                <p class="text-sm text-gray-400">修改后请点击保存按钮</p>
+                            </div>
+                            <button class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                <span>保存更改</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== 语言切换功能 ====================
+        const langToggle = document.getElementById('langToggle');
+        const langMenu = document.getElementById('langMenu');
+        const currentLangSpan = document.getElementById('currentLang');
+        let currentLanguage = 'zh-CN';
+
+        // 语言配置
+        const languages = {
+            'zh-CN': '简体中文',
+            'en-US': 'English',
+            'ja-JP': '日本語'
+        };
+
+        // 切换语言菜单显示
+        if (langToggle && langMenu) {
+            langToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                langMenu.classList.toggle('active');
+            });
+
+            // 点击外部关闭菜单
+            document.addEventListener('click', () => {
+                langMenu.classList.remove('active');
+            });
+
+            langMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // 选择语言
+            document.querySelectorAll('.lang-menu-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const lang = item.dataset.lang;
+                    if (lang === currentLanguage) return;
+
+                    currentLanguage = lang;
+                    currentLangSpan.textContent = languages[lang];
+
+                    // 更新选中状态
+                    document.querySelectorAll('.lang-menu-item').forEach(menuItem => {
+                        menuItem.classList.remove('active');
+                        const checkIcon = menuItem.querySelector('i.fa-check');
+                        const circleIcon = menuItem.querySelector('i.fa-circle');
+                        if (checkIcon) checkIcon.style.opacity = '0';
+                        if (circleIcon) circleIcon.style.opacity = '0';
+                    });
+
+                    item.classList.add('active');
+                    const selectedIcon = item.querySelector('i');
+                    if (selectedIcon) {
+                        selectedIcon.className = 'fas fa-check';
+                        selectedIcon.style.opacity = '1';
+                    }
+
+                    langMenu.classList.remove('active');
+
+                    // 显示切换提示
+                    showNotification(`语言已切换为 ${languages[lang]}`, 'success');
+
+                    // 这里可以添加实际的语言切换逻辑
+                    // switchLanguage(lang);
+                });
+            });
+        }
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // 获取URL中的项目ID参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectId = urlParams.get('projectId');
+
+            if (projectId) {
+                // 如果有项目ID，加载特定项目的数据
+                loadProjectData(projectId);
+
+                // 更新页面标题显示项目名称
+                const projectName = getProjectName(projectId);
+                document.getElementById('pageTitle').textContent = `项目: ${projectName}`;
+
+                // 更新面包屑导航中的项目名称
+                const breadcrumbName = document.getElementById('currentProjectName');
+                if (breadcrumbName) {
+                    breadcrumbName.textContent = projectName;
+                }
+
+                // 添加返回按钮
+                const headerActions = document.querySelector('header .flex.items-center.gap-4');
+                if (headerActions && !document.getElementById('backToProjects')) {
+                    const backButton = document.createElement('button');
+                    backButton.id = 'backToProjects';
+                    backButton.className = 'btn btn-secondary';
+                    backButton.innerHTML = '<i class="fas fa-arrow-left"></i><span>返回项目列表</span>';
+                    backButton.onclick = () => window.location.href = 'projects.html';
+                    headerActions.insertBefore(backButton, headerActions.firstChild);
+                }
+            } else {
+                // 如果没有项目ID，隐藏面包屑导航
+                const breadcrumb = document.querySelector('header .flex.items-center.gap-2.mb-2');
+                if (breadcrumb) {
+                    breadcrumb.style.display = 'none';
+                }
+            }
+
+            // 加载默认页面
+            loadDashboard();
+
+            // 添加一些交互反馈
+            console.log('%c🌟 inSona 商业照明管理系统', 'color: #3b82f6; font-size: 16px; font-weight: bold;');
+            console.log('%c✨ 系统已就绪', 'color: #10b981; font-size: 12px;');
+            if (projectId) {
+                console.log(`%c📁 当前项目: ${projectId}`, 'color: #f59e0b; font-size: 12px;');
+            }
+        });
+
+        // 加载项目数据
+        function loadProjectData(projectId) {
+            // 这里应该从后端加载项目数据
+            // 模拟加载过程
+            console.log(`加载项目数据: ${projectId}`);
+
+            // 存储当前项目ID 到全局状态
+            AppState.currentProjectId = projectId;
+
+            // 可以在这里筛选设备、场景等数据，只显示当前项目的内容
+            // 例如：
+            // AppState.devices = AppState.allDevices.filter(d => d.projectId === projectId);
+            // AppState.scenes = AppState.allScenes.filter(s => s.projectId === projectId);
+        }
+
+        // 获取项目名称
+        function getProjectName(projectId) {
+            // 这里应该从后端获取项目信息
+            // 模拟返回
+            const projectNames = {
+                'proj-001': '万达广场',
+                'proj-002': '希尔顿酒店',
+                'proj-003': '腾讯大厦',
+                'proj-004': '华润中心',
+                'proj-005': '绿地集团总部',
+                'proj-006': '万豪酒店',
+                'proj-007': '海底捞火锅',
+                'proj-008': '阿里巴巴园区'
+            };
+            return projectNames[projectId] || '未知项目';
+        }
+    </script>
+</body>
+
+</html>
