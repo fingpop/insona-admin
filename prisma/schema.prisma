@@ -74,6 +74,7 @@ model Scene {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   actions   SceneAction[]
+  scheduledTasks ScheduledTask[]  // 关联的定时任务
   @@index([isDefault])
   @@index([isCustom])
   @@index([showInQuick])
@@ -119,12 +120,15 @@ model ScheduledTask {
   id        String  @id @default(cuid())
   name      String
   deviceId  String?
-  sceneId   String? // 关联 Scene 表的 id
+  sceneId   String?
   device    Device? @relation(fields: [deviceId], references: [id])
+  scene     Scene?  @relation(fields: [sceneId], references: [id])
   cronExpr  String  // e.g. "0 8 * * *"
-  action    String  // "onoff" | "level" | "scene"
+  action    String  // "onoff" | "level" | "scene" | "curtain"
   value     String  @default("[]") // JSON-encoded value array
   enabled   Boolean @default(true)
+  lastRun   DateTime?  // 上次执行时间
+  nextRun   DateTime?  // 下次计划执行时间
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

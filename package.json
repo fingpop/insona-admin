@@ -7,12 +7,14 @@
     "dev:watch": "nodemon --exec \"npm run build\" --watch src/app/api --watch src/lib/gateway --watch src/hooks",
     "build": "next build",
     "start": "next start",
+    "scheduler": "node scripts/scheduler.js",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "cron-parser": "^5.5.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
