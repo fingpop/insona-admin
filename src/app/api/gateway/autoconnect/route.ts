@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { gatewayService } from "@/lib/gateway/GatewayService";
 import { prisma } from "@/lib/prisma";
-import { InSonaDevice } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -20,67 +19,11 @@ export async function POST() {
       return NextResponse.json({ status: "no_gateway_config" });
     }
 
-    // 尝试连接网关
+    // 尝试连接网关（queryDevices() 会自动调用）
     await gatewayService.connect(gateway.ip, gateway.port ?? 8091);
 
-    // 连接成功后，查询设备列表并更新数据库
-    const result = await gatewayService.queryDevices();
-
-    // 更新网关状态
-    await prisma.gateway.update({
-      where: { id: "default" },
-      data: { status: "connected", lastSeen: new Date() },
-    });
-
-    // 解析设备数据并保存到数据库
-    if (result && typeof result === "object" && "devices" in result) {
-      const gatewayDevices = (result as unknown as { devices: InSonaDevice[] }).devices;
-
-      for (const dev of gatewayDevices) {
-        const did = String(dev.did);
-        const pid = Number(dev.pid ?? 0);
-        const ver = String(dev.ver ?? "");
-        const type = Number(dev.type);
-        const name = String(dev.name || `设备${did.slice(-6)}`);
-        const meshId = dev.meshid ? String(dev.meshid) : undefined;
-        const func = Number(dev.func || 0);
-        const alive = Number(dev.alive ?? 1);
-        const value = dev.value !== undefined ? JSON.stringify(dev.value) : "[]";
-
-        // 查找是否已存在
-        const existing = await prisma.device.findUnique({ where: { id: did } });
-
-        if (existing) {
-          await prisma.device.update({
-            where: { id: did },
-            data: {
-              pid,
-              ver,
-              type,
-              name,
-              meshId,
-              func,
-              alive,
-              value,
-            },
-          });
-        } else {
-          await prisma.device.create({
-            data: {
-              id: did,
-              pid,
-              ver,
-              type,
-              name,
-              meshId,
-              func,
-              alive,
-              value,
-            },
-          });
-        }
-      }
-    }
+    // GatewayService.connect() 内部已自动调用 queryDevices() 并广播 SSE 事件
+    // 前端会通过 SSE 的 "connected" 和 "s.query" 事件自动刷新设备列表
 
     return NextResponse.json({
       status: "connected",

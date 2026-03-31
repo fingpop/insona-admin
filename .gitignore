@@ -1,7 +1,17 @@
 node_modules/
 .next/
-.env
-*.db
+# .env  # 注释掉以包含环境配置文件
+# *.db  # 注释掉以包含数据库文件
 *.db-journal
 .DS_Store
 tsconfig.tsbuildinfo
+
+# Claude Code 本地配置
+.claude/
+
+# 日志文件
+*.log
+
+# 备份文件
+*.tar.gz
+*.zip

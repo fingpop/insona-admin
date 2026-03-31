@@ -1,4 +1,6 @@
 import net from "net";
+import fs from "fs";
+import path from "path";
 import { InSonaRequest, InSonaResponse } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
 
@@ -26,6 +28,7 @@ class GatewayService {
   private sseConsumers: Set<SSEConsumer> = new Set();
   // UUID counter capped at 9 digits for inSona gateway compatibility
   private _uuidCounter: number = 0;
+  private _isManualDisconnect: boolean = false; // 区分手动断开和意外断开
   private _nextUuid(): number {
     this._uuidCounter = (this._uuidCounter + 1) % 1_000_000_000;
     return this._uuidCounter;
@@ -50,6 +53,7 @@ class GatewayService {
     this.ip = ip;
     this.port = port;
     this._status = "connecting";
+    this._isManualDisconnect = false; // 重置手动断开标志（用户主动连接）
     this.reconnectAttempts = 0;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -59,8 +63,9 @@ class GatewayService {
     return this._doConnect();
   }
 
-  disconnect() {
+  async disconnect() {
     debug("Disconnecting...");
+    this._isManualDisconnect = true; // 标记为手动断开
     this._clearTimers();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -71,6 +76,21 @@ class GatewayService {
       this.socket = null;
     }
     this._status = "disconnected";
+
+    // 更新数据库中的网关状态
+    try {
+      await prisma.gateway.update({
+        where: { id: "default" },
+        data: {
+          status: "disconnected",
+          lastSeen: new Date(),
+        },
+      });
+      debug("Gateway status updated to disconnected in database");
+    } catch (err) {
+      debug("Failed to update gateway status in database:", err);
+    }
+
     this.pendingRequests.forEach(({ reject, timeout }) => {
       clearTimeout(timeout);
       reject(new Error("disconnected"));
@@ -82,12 +102,41 @@ class GatewayService {
     return new Promise((resolve, reject) => {
       this.socket = new net.Socket();
 
-      this.socket.connect(this.port, this.ip, () => {
+      this.socket.connect(this.port, this.ip, async () => {
         this._status = "connected";
         this.reconnectAttempts = 0;
         debug(`Connected to ${this.ip}:${this.port}`);
         this._broadcast({ type: "connected" });
         this._startHeartbeatMonitor();
+
+        // 更新数据库中的网关状态
+        try {
+          await prisma.gateway.update({
+            where: { id: "default" },
+            data: {
+              ip: this.ip,
+              port: this.port,
+              status: "connected",
+              lastSeen: new Date(),
+            },
+          });
+          debug("Gateway status updated to connected in database");
+        } catch (err) {
+          debug("Failed to update gateway status in database:", err);
+        }
+
+        // 连接成功后延迟同步设备数据，给前端时间建立 SSE 连接
+        setTimeout(() => {
+          this.syncDevices()
+            .then(() => {
+              debug("Auto-sync completed after connection");
+              // syncDevices() 会调用 queryDevices()，结果会通过 SSE 广播
+            })
+            .catch((err) => {
+              debug("Auto-sync failed after connection:", err.message);
+            });
+        }, 1000); // 延迟1秒，确保前端 SSE 已连接
+
         resolve();
       });
 
@@ -137,7 +186,14 @@ class GatewayService {
       debug("Failed to mark devices offline:", dbErr);
     }
 
-    this._scheduleReconnect();
+    // 只有非手动断开才自动重连
+    if (!this._isManualDisconnect) {
+      debug("Unexpected disconnect, will attempt to reconnect");
+      this._scheduleReconnect();
+    } else {
+      debug("Manual disconnect, skipping auto-reconnect");
+      this._isManualDisconnect = false; // 重置标志
+    }
   }
 
   private _scheduleReconnect() {
@@ -152,8 +208,8 @@ class GatewayService {
     this.reconnectTimer = setTimeout(() => {
       this._doConnect()
         .then(() => {
-          debug("Reconnected, syncing devices...");
-          this.queryDevices().catch(() => {});
+          debug("Reconnected successfully");
+          // queryDevices() 已在 _doConnect 中自动调用，无需重复
         })
         .catch(() => {});
     }, delay);
@@ -217,6 +273,13 @@ class GatewayService {
     } else if (method === "s.event") {
       debug(`[EVENT] ${msg.evt}`);
       this._broadcast({ type: "s.event", payload: msg });
+
+      // 处理能耗上报事件
+      if (msg.evt === "energy") {
+        this._handleEnergyEvent(msg).catch((err) => {
+          debug("[ENERGY] Failed to save:", err);
+        });
+      }
     } else {
       debug(`[WARN] Unknown message type: ${method}`);
     }
@@ -258,6 +321,70 @@ class GatewayService {
     // Match exact field order expected by inSona gateway
     const req: InSonaRequest = { version: 1, uuid, method: "c.query", type: "all" };
     return (await this.sendRequest(req, 15000)) as InSonaResponse;
+  }
+
+  async syncDevices(): Promise<void> {
+    debug("[SYNC] Starting device synchronization...");
+
+    // 查询设备列表
+    const result = await this.queryDevices();
+
+    // 保存设备数据到数据库
+    if (result && typeof result === "object" && "devices" in result) {
+      const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
+
+      for (const dev of gatewayDevices) {
+        const did = String(dev.did);
+        const pid = Number(dev.pid ?? 0);
+        const ver = String(dev.ver ?? "");
+        const type = Number(dev.type);
+        const name = String(dev.name || `设备${did.slice(-6)}`);
+        const meshId = dev.meshid ? String(dev.meshid) : undefined;
+        const func = Number(dev.func || 0);
+        const alive = Number(dev.alive ?? 1);
+        const value = dev.value !== undefined ? JSON.stringify(dev.value) : "[]";
+        const funcs = dev.funcs ? JSON.stringify(dev.funcs) : "[]";
+
+        try {
+          // Upsert 设备数据
+          await prisma.device.upsert({
+            where: { id: did },
+            update: {
+              pid,
+              ver,
+              type,
+              name,
+              meshId,
+              func,
+              alive,
+              value,
+              funcs,
+              gatewayName: name,
+            },
+            create: {
+              id: did,
+              pid,
+              ver,
+              type,
+              name,
+              meshId,
+              func,
+              alive,
+              value,
+              funcs,
+              gatewayName: name,
+              ratedPower: 10.0,
+            },
+          });
+        } catch (err) {
+          debug(`[SYNC] Failed to save device ${did}:`, err);
+        }
+      }
+
+      debug(`[SYNC] Successfully synchronized ${gatewayDevices.length} devices`);
+    } else {
+      debug("[SYNC] No devices in response");
+    }
   }
 
   async controlDevice(
@@ -317,6 +444,121 @@ class GatewayService {
       } catch {
         this.sseConsumers.delete(consumer);
       }
+    }
+  }
+
+  // ─── Energy event handling ─────────────────────────────────────────────────
+
+  private async _handleEnergyEvent(msg: Record<string, unknown>) {
+    const { did, power, percent, period, meshid, energy } = msg;
+
+    if (!did) {
+      debug("[ENERGY] Missing device ID");
+      return;
+    }
+
+    // 记录 ECC57FB5134F00 设备的能耗事件到日志文件（测试用）
+    if (did === "ECC57FB5134F00") {
+      const timestamp = new Date();
+      const hours = timestamp.getHours().toString().padStart(2, '0');
+      const minutes = timestamp.getMinutes().toString().padStart(2, '0');
+      const seconds = timestamp.getSeconds().toString().padStart(2, '0');
+      const ms = timestamp.getMilliseconds().toString().padStart(3, '0');
+      const timeStr = `${hours}:${minutes}:${seconds}.${ms}`;
+
+      // 解析 energy 数组（序号-百分比成对）
+      let analysis = "";
+      if (energy && Array.isArray(energy)) {
+        const pairs: string[] = [];
+        for (let i = 0; i < energy.length; i += 2) {
+          const seq = energy[i];      // 序号
+          const pct = energy[i + 1];   // 百分比
+          pairs.push(`${seq}(${pct}%)`);
+        }
+        analysis = ` [${pairs.join(', ')}]`;
+      }
+
+      const logEntry = `[${timeStr}] ${JSON.stringify(msg)}${analysis}\n`;
+      const logPath = path.join(process.cwd(), "energy_events.log");
+
+      try {
+        fs.appendFileSync(logPath, logEntry, "utf8");
+      } catch (err) {
+        debug("[ENERGY LOG] Failed to write:", err);
+      }
+    }
+
+    // 检查设备是否存在
+    const device = await prisma.device.findUnique({ where: { id: did as string } });
+    if (!device) {
+      debug("[ENERGY] Device not found in database:", did);
+      return;
+    }
+
+    // 处理新的能耗数据格式（energy数组）
+    if (energy && Array.isArray(energy) && energy.length >= 2) {
+      debug(`[ENERGY] Processing ${energy.length / 2} data points for device ${did}`);
+
+      const dataPoints: Array<{
+        sequence: number;
+        percent: number;
+        kwh: number;
+      }> = [];
+
+      // 解析 energy 数组
+      for (let i = 0; i < energy.length; i += 2) {
+        const sequence = energy[i] as number;      // 序号
+        const percentValue = energy[i + 1] as number; // 百分比
+
+        // 计算能耗
+        // 实际功率 = 额定功率 × 百分比
+        const actualPowerWatts = (power as number) * (percentValue / 100);
+        // 能耗 = 功率(W) × 周期(min) / 60(h) / 1000
+        const kwh = actualPowerWatts * (period as number) / 60 / 1000;
+
+        dataPoints.push({
+          sequence,
+          percent: percentValue,
+          kwh
+        });
+      }
+
+      // 批量保存到数据库（使用 upsert 自动去重）
+      const today = new Date().toISOString().split("T")[0];
+      let savedCount = 0;
+      let skippedCount = 0;
+
+      for (const point of dataPoints) {
+        try {
+          await prisma.energyData.upsert({
+            where: {
+              deviceId_sequence: {
+                deviceId: did as string,
+                sequence: point.sequence
+              }
+            },
+            update: {
+              kwh: point.kwh,
+              percent: point.percent,
+            },
+            create: {
+              deviceId: did as string,
+              sequence: point.sequence,
+              date: today,
+              kwh: point.kwh,
+              percent: point.percent,
+              power: power as number,
+              period: period as number,
+            }
+          });
+          savedCount++;
+        } catch (err) {
+          debug(`[ENERGY] Failed to save sequence ${point.sequence}:`, err);
+          skippedCount++;
+        }
+      }
+
+      debug(`[ENERGY] Saved ${savedCount} data points, skipped ${skippedCount}`);
     }
   }
 }
