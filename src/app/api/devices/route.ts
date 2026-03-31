@@ -43,14 +43,32 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  // 获取今日能耗数据
+  // 从 EnergyData 表获取今日能耗数据（汇总）
   const today = new Date().toISOString().split("T")[0];
-  const energyRecords = await prisma.energyRecord.findMany({
+  const energyDataRecords = await prisma.energyData.findMany({
     where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
+    orderBy: { sequence: "desc" },
   });
 
-  // 转换为 map，方便关联
-  const energyMap = new Map(energyRecords.map((r) => [r.deviceId, r]));
+  // 汇总每个设备的能耗和最新功率
+  const energyMap = new Map<string, { totalKwh: number; latestPower: number; latestSequence: number }>();
+  for (const record of energyDataRecords) {
+    const existing = energyMap.get(record.deviceId);
+    if (existing) {
+      existing.totalKwh += record.kwh;
+      // 更新最新功率（sequence更大）
+      if (record.sequence > existing.latestSequence) {
+        existing.latestSequence = record.sequence;
+        existing.latestPower = record.power;
+      }
+    } else {
+      energyMap.set(record.deviceId, {
+        totalKwh: record.kwh,
+        latestPower: record.power,
+        latestSequence: record.sequence,
+      });
+    }
+  }
 
   // 合并设备数据和能耗数据
   const devicesWithEnergy = devices.map((d) => {
@@ -58,8 +76,8 @@ export async function GET(request: Request) {
     return {
       ...d,
       funcs: (() => { try { return JSON.parse(d.funcs) as number[]; } catch { return []; } })(),
-      power: energy?.peakWatts ?? null,
-      todayKwh: energy?.kwh ?? null,
+      power: energy?.latestPower ?? null,
+      todayKwh: energy?.totalKwh ?? null,
     };
   });
 
@@ -150,19 +168,40 @@ export async function POST() {
       orderBy: { name: "asc" },
     });
 
-    // 获取今日能耗数据
+    // 从 EnergyData 表获取今日能耗数据（汇总）
     const today = new Date().toISOString().split("T")[0];
-    const energyRecords = await prisma.energyRecord.findMany({
+    const energyDataRecords = await prisma.energyData.findMany({
       where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
+      orderBy: { sequence: "desc" },
     });
-    const energyMap = new Map(energyRecords.map((r) => [r.deviceId, r]));
+
+    // 汇总每个设备的能耗和最新功率
+    const energyMap = new Map<string, { totalKwh: number; latestPower: number; latestSequence: number }>();
+    for (const record of energyDataRecords) {
+      const existing = energyMap.get(record.deviceId);
+      if (existing) {
+        existing.totalKwh += record.kwh;
+        // 更新最新功率（sequence更大）
+        if (record.sequence > existing.latestSequence) {
+          existing.latestSequence = record.sequence;
+          existing.latestPower = record.power;
+        }
+      } else {
+        energyMap.set(record.deviceId, {
+          totalKwh: record.kwh,
+          latestPower: record.power,
+          latestSequence: record.sequence,
+        });
+      }
+    }
+
     const devicesWithEnergy = devices.map((d) => {
       const energy = energyMap.get(d.id);
       return {
         ...d,
         funcs: (() => { try { return JSON.parse(d.funcs) as number[]; } catch { return []; } })(),
-        power: energy?.peakWatts ?? null,
-        todayKwh: energy?.kwh ?? null,
+        power: energy?.latestPower ?? null,
+        todayKwh: energy?.totalKwh ?? null,
       };
     });
 

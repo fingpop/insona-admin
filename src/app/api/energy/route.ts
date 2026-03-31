@@ -31,11 +31,34 @@ export async function GET(request: Request) {
     if (to) (where.date as Record<string, string>).lte = to;
   }
 
-  const records = await prisma.energyRecord.findMany({
+  // 从 EnergyData 表读取并汇总（而不是 EnergyRecord）
+  const energyDataRecords = await prisma.energyData.findMany({
     where,
     include: { device: { include: { room: true } } },
-    orderBy: { date: "desc" },
+    orderBy: { timestamp: "desc" },
   });
+
+  // 按设备和日期汇总
+  const recordsMap = new Map<string, { deviceId: string; date: string; kwh: number; peakWatts: number; device: any }>();
+
+  for (const record of energyDataRecords) {
+    const key = `${record.deviceId}_${record.date}`;
+    const existing = recordsMap.get(key);
+    if (existing) {
+      existing.kwh += record.kwh;
+      existing.peakWatts = Math.max(existing.peakWatts, record.power * (record.percent / 100));
+    } else {
+      recordsMap.set(key, {
+        deviceId: record.deviceId,
+        date: record.date,
+        kwh: record.kwh,
+        peakWatts: record.power * (record.percent / 100),
+        device: record.device,
+      });
+    }
+  }
+
+  const records = Array.from(recordsMap.values());
 
   // Aggregate totals
   const totals = records.reduce(
@@ -57,27 +80,42 @@ export async function GET(request: Request) {
     dailyWhere.deviceId = { in: devices.map((d) => d.id) };
   }
 
-  const dailyTotals = await prisma.energyRecord.groupBy({
+  // 从 EnergyData 汇总每日能耗
+  const dailyData = await prisma.energyData.groupBy({
     by: ["date"],
     _sum: { kwh: true },
     where: dailyWhere,
     orderBy: { date: "asc" },
   });
 
+  const dailyTotals = dailyData.map((d) => ({
+    date: d.date,
+    _sum: { kwh: d._sum.kwh },
+  }));
+
   return Response.json({ records, totals, dailyTotals });
 }
 
 // 接收网关能耗数据上报
+// 协议：power(W) * percent(%) * period(min) = 能耗
 export async function POST(request: Request) {
   try {
-    const { did, power, percent, period, energy, meshid } = await request.json();
+    const { did, power, percent, period, meshid } = await request.json();
 
     if (!did) {
       return NextResponse.json({ error: "缺少设备ID" }, { status: 400 });
     }
 
+    // 计算本次上报的能耗 (kWh)
+    // power 字段单位是 W（瓦特），表示额定功率
+    // percent 是亮度百分比，折算实际功率
+    // 实际功率 = power(W) × percent(%)
+    // 能耗 kWh = 实际功率(W) × period(min) / 60(h) / 1000
+    const actualPowerWatts = (power ?? 0) * ((percent ?? 100) / 100);
+    const energyKwh = actualPowerWatts * (period ?? 0) / 60 / 1000;
+
     // 调试日志
-    console.log("[ENERGY API]", { did, meshid, power, percent, period, energy });
+    console.log("[ENERGY API]", { did, meshid, power, percent, period, actualPowerWatts, energyKwh });
 
     // 组设备不需要计算能耗
     if (isGroupDevice(did)) {
@@ -103,27 +141,29 @@ export async function POST(request: Request) {
     });
 
     if (existing) {
+      const newKwh = existing.kwh + energyKwh;
+      const newPeakWatts = Math.max(existing.peakWatts, actualPowerWatts);
       await prisma.energyRecord.update({
         where: { deviceId_date: { deviceId, date: today } },
         data: {
-          kwh: existing.kwh + (energy ?? 0),
-          peakWatts: Math.max(existing.peakWatts, power ?? 0),
+          kwh: newKwh,
+          peakWatts: newPeakWatts,
         },
       });
-      console.log("[ENERGY API] Updated:", deviceId, { newKwh: existing.kwh + (energy ?? 0) });
+      console.log("[ENERGY API] Updated:", deviceId, { newKwh, newPeakWatts });
     } else {
       await prisma.energyRecord.create({
         data: {
           deviceId,
           date: today,
-          kwh: energy ?? 0,
-          peakWatts: power ?? 0,
+          kwh: energyKwh,
+          peakWatts: actualPowerWatts,
         },
       });
-      console.log("[ENERGY API] Created:", deviceId, { kwh: energy ?? 0 });
+      console.log("[ENERGY API] Created:", deviceId, { kwh: energyKwh, peakWatts: actualPowerWatts });
     }
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, calculated: { actualPowerWatts, energyKwh } });
   } catch (err) {
     console.error("Energy data error:", err);
     return NextResponse.json({ error: "保存能耗数据失败" }, { status: 500 });

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
-import { InSonaDevice, DEVICE_TYPE_LABELS, FUNC_LABELS, isGroupDevice } from "@/lib/types";
+import { InSonaDevice, DEVICE_TYPE_LABELS, FUNC_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
+import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
 
 // 动态导入组设备页面（避免打包问题）
 const GroupsPage = dynamic(() => import("@/app/(dashboard)/groups/page"), {
@@ -330,46 +331,17 @@ export default function ControlPanel() {
 
           handleDeviceUpdate(update as InSonaDevice);
         } else if (payload.evt === "energy" && payload.did) {
-          // 能耗数据上报
+          // 能耗数据上报（新格式：包含 energy 数组）
           const did = String(payload.did);
-          const meshid = payload.meshid ? String(payload.meshid) : undefined;
-          const power = Number(payload.power ?? 0); // 功率 (W)
-          const percent = Number(payload.percent ?? 0); // 输出百分比 (0-100)
-          const period = Number(payload.period ?? 1); // 时间周期 (分钟)
-          // 能耗计算: kWh = 功率(W) × 百分比(÷100) × 时间(÷60) ÷ 1000
-          const energy = (power * (percent / 100) * (period / 60)) / 1000;
+          const power = Number(payload.power ?? 0); // 额定功率 (W)
 
-          // 调试日志 - 监控特定设备（匹配 gatewayName 或 DID）
-          const gatewayName = payload.name ? String(payload.name) : "";
-          if (
-            gatewayName.includes("EC:C5:7F:A9:8E:E7") ||
-            did.includes("EC") ||
-            did.includes("ECC57FA98EE7")
-          ) {
-            console.log("[ENERGY DEBUG]", {
-              did,
-              gatewayName,
-              meshid,
-              power,
-              percent,
-              period,
-              energy,
-              rawPayload: payload,
-            });
-          }
-
-          // 更新本地设备状态
+          // 更新本地设备状态（只更新功率）
           handleDeviceUpdate({
             did,
             power,
           } as InSonaDevice);
 
-          // 发送到后端存储（组设备需要传递 meshid）
-          fetch("/api/energy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ did, meshid, power, percent, period, energy }),
-          }).catch(console.error);
+          // GatewayService 已经在后端处理能耗数据保存，前端不需要再调用 API
         }
       }
     });
@@ -391,25 +363,31 @@ export default function ControlPanel() {
         // 2. 加载设备和空间数据（即使未连接也显示本地数据）
         await queryDevices();
 
-        // 3. 加载今日能耗数据
+        // 3. 加载今日能耗和功率数据
         try {
-          const today = new Date().toISOString().split("T")[0];
-          const energyRes = await fetch(`/api/energy?from=${today}&to=${today}`);
-          const energyData = await energyRes.json();
-          if (energyData.records) {
-            // 更新每个设备的今日能耗
-            const energyMap = new Map<string, number>(energyData.records.map((r: { deviceId: string; kwh: number }) => [r.deviceId, r.kwh]));
+          const todayEnergyRes = await fetch("/api/energy/today");
+          const todayEnergyData = await todayEnergyRes.json();
 
-            // 调试：检查目标设备的能耗
-            const targetDeviceId = "ECC57FA98EE700";
-            console.log("[ENERGY DISPLAY] energyMap keys:", [...energyMap.keys()].filter(k => k.includes("ECC5")));
-            console.log("[ENERGY DISPLAY] Looking for:", targetDeviceId, "Found:", energyMap.get(targetDeviceId));
+          if (todayEnergyData.deviceStats) {
+            // 创建功率和能耗的映射
+            const energyMap = new Map<string, { todayKwh: number; power: number }>(
+              todayEnergyData.deviceStats.map((stat: {
+                deviceId: string;
+                totalKwh: number;
+                latestPower: number;
+              }) => [stat.deviceId, { todayKwh: stat.totalKwh, power: stat.latestPower }])
+            );
 
+            // 更新设备的今日能耗和功率
             setDevices((prev) =>
-              prev.map((d) => ({
-                ...d,
-                todayKwh: energyMap.get(d.did) ?? d.todayKwh,
-              }))
+              prev.map((d) => {
+                const energyInfo = energyMap.get(d.did);
+                return {
+                  ...d,
+                  todayKwh: energyInfo?.todayKwh ?? d.todayKwh,
+                  power: energyInfo?.power ?? d.power,
+                };
+              })
             );
           }
         } catch (err) {
@@ -654,7 +632,7 @@ export default function ControlPanel() {
             <AutomationPage devices={dbDevices} />
           )}
           {currentPage === "energy" && (
-            <EnergyPage devices={devices} spaces={spaces} />
+            <EnergyPage dbDevices={dbDevices} spaces={spaces} />
           )}
           {currentPage === "settings" && (
             <SettingsPage
@@ -1264,7 +1242,11 @@ function DevicesPage({
 
   const filteredDevices = devices.filter((device) => {
     // 排除组设备（统一显示到组设备管理模块）
-    if (isGroupDevice(device.did)) return false;
+    // device.did 可能是 "1906146853:C1" 或 "ECC57F10D4CF00" 格式
+    // 需要解析出原始 DID 进行判断
+    const { did: originalDid } = parseStoredDeviceId(device.did);
+    if (isGroupDevice(originalDid)) return false;
+
     // 按标签页筛选类型
     if (activeTab === "lights" && device.type !== 1984) return false;
     if (activeTab === "panels" && device.type !== 1218) return false;
@@ -3885,15 +3867,26 @@ function ScenesPage({
 }
 
 // ==================== 能耗分析页面 ====================
-function EnergyPage({ devices, spaces }: { devices: InSonaDevice[]; spaces: SpaceNode[] }) {
+function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: SpaceNode[] }) {
   const [period, setPeriod] = useState(30);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
+  const [todayChartType, setTodayChartType] = useState<"hourly" | "room">("hourly"); // 今日能耗图表类型
   const [energyData, setEnergyData] = useState<{
     records: { deviceId: string; date: string; kwh: number; device: { name: string; room?: { name: string } } }[];
     totals: { kwh: number };
     dailyTotals: { date: string; _sum: { kwh: number | null } }[];
   } | null>(null);
+  const [todayEnergy, setTodayEnergy] = useState<{
+    date: string;
+    totalKwh: number;
+    recordCount: number;
+    deviceStats: any[];
+    roomStats: any[];
+    hourlyData: any[];
+    latestData: any[];
+  } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [todayLoading, setTodayLoading] = useState(false);
 
   // 获取查询日期范围
   const getDateRange = () => {
@@ -3921,9 +3914,28 @@ function EnergyPage({ devices, spaces }: { devices: InSonaDevice[]; spaces: Spac
     }
   }, [period, selectedRoom]);
 
+  // 加载今日能耗数据
+  const loadTodayEnergy = useCallback(async () => {
+    setTodayLoading(true);
+    try {
+      let url = "/api/energy/today";
+      if (selectedRoom) {
+        url += `?roomId=${selectedRoom}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      setTodayEnergy(data);
+    } catch (err) {
+      console.error("加载今日能耗数据失败:", err);
+    } finally {
+      setTodayLoading(false);
+    }
+  }, [selectedRoom]);
+
   useEffect(() => {
     loadEnergyData();
-  }, [loadEnergyData]);
+    loadTodayEnergy();
+  }, [loadEnergyData, loadTodayEnergy]);
 
   // 处理每日数据
   const dailyData = energyData?.dailyTotals?.map((d) => ({
@@ -3963,21 +3975,142 @@ function EnergyPage({ devices, spaces }: { devices: InSonaDevice[]; spaces: Spac
 
   return (
     <div className="fade-in">
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="stat-card">
-          <p className="text-sm text-blue-200 mb-1">总能耗 (kWh)</p>
-          <h3 className="text-3xl font-bold text-white">{totalKwh.toFixed(2)}</h3>
+      {/* 今日能耗统计卡片 */}
+      {todayEnergy && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="stat-card">
+            <p className="text-sm text-blue-200 mb-1">今日总能耗 (kWh)</p>
+            <h3 className="text-3xl font-bold text-white">{todayEnergy.totalKwh.toFixed(4)}</h3>
+            <p className="text-xs text-gray-400 mt-2">
+              {todayEnergy.recordCount} 条记录
+            </p>
+          </div>
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }}>
+            <p className="text-sm text-green-200 mb-1">活跃设备</p>
+            <h3 className="text-3xl font-bold text-white">{todayEnergy.deviceStats.length}</h3>
+            <p className="text-xs text-gray-400 mt-2">
+              {todayEnergy.roomStats.length} 个空间
+            </p>
+          </div>
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" }}>
+            <p className="text-sm text-purple-200 mb-1">总能耗 (kWh)</p>
+            <h3 className="text-3xl font-bold text-white">{totalKwh.toFixed(2)}</h3>
+          </div>
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
+            <p className="text-sm text-red-200 mb-1">日均能耗 (kWh)</p>
+            <h3 className="text-3xl font-bold text-white">{avgKwh.toFixed(2)}</h3>
+          </div>
         </div>
-        <div className="stat-card" style={{ background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }}>
-          <p className="text-sm text-green-200 mb-1">日均能耗 (kWh)</p>
-          <h3 className="text-3xl font-bold text-white">{avgKwh.toFixed(2)}</h3>
+      )}
+
+      {/* 今日能耗趋势 */}
+      {todayEnergy && (
+        <div className="card mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-white">今日能耗趋势</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTodayChartType("hourly")}
+                className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                  todayChartType === "hourly"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                <i className="fas fa-clock mr-2"></i>
+                小时趋势
+              </button>
+              <button
+                onClick={() => setTodayChartType("room")}
+                className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                  todayChartType === "room"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                <i className="fas fa-building mr-2"></i>
+                空间对比
+              </button>
+            </div>
+          </div>
+
+          <div style={{ height: "300px" }}>
+            {todayChartType === "hourly" && todayEnergy.hourlyData && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={todayEnergy.hourlyData}>
+                  <defs>
+                    <linearGradient id="colorToday" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="hour" stroke="#9ca3af" fontSize={12} />
+                  <YAxis stroke="#9ca3af" fontSize={12} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "none",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="kwh"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fill="url(#colorToday)"
+                    name="能耗(kWh)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+
+            {todayChartType === "room" && todayEnergy.roomStats && (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={todayEnergy.roomStats.sort((a, b) => b.totalKwh - a.totalKwh)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis
+                    dataKey="roomName"
+                    stroke="#9ca3af"
+                    fontSize={11}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis stroke="#9ca3af" fontSize={12} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "none",
+                      borderRadius: "8px",
+                    }}
+                    formatter={(value: number) => [`${value.toFixed(4)} kWh`, "能耗"]}
+                  />
+                  <Bar
+                    dataKey="totalKwh"
+                    fill="#3b82f6"
+                    radius={[8, 8, 0, 0]}
+                    name="能耗(kWh)"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* 图表说明 */}
+          {todayChartType === "hourly" && (
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              24小时能耗分布趋势，展示每小时的累计能耗
+            </p>
+          )}
+          {todayChartType === "room" && (
+            <p className="text-xs text-gray-500 mt-4 text-center">
+              各空间当日能耗对比，按能耗从高到低排序
+            </p>
+          )}
         </div>
-        <div className="stat-card" style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" }}>
-          <p className="text-sm text-purple-200 mb-1">设备数量</p>
-          <h3 className="text-3xl font-bold text-white">{devices.length}</h3>
-        </div>
-      </div>
+      )}
 
       {/* 筛选条件 */}
       <div className="card mb-6">
