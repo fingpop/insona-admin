@@ -1215,6 +1215,7 @@ function DevicesPage({
   const [editingDevice, setEditingDevice] = useState<InSonaDevice | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // 扁平化空间列表
   const flattenSpaces = (list: SpaceNode[], result: { id: string; name: string }[] = []): { id: string; name: string }[] => {
@@ -1331,7 +1332,7 @@ function DevicesPage({
     setSaving(true);
     try {
       const body: Record<string, unknown> = { name: data.name };
-      // 只有当 roomId 有值时才发送，否则发送 null 来解绑
+      // 只有当 roomId 有值时才发送,否则发送 null 来解绑
       if (data.roomId) {
         body.roomId = data.roomId;
       } else {
@@ -1350,6 +1351,27 @@ function DevicesPage({
       alert(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 导入数据
+  const handleImportData = async () => {
+    if (!confirm("确认导入 insona-devices.json 的数据到数据库？\n这将创建/更新房间和设备信息。")) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/import-data", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`导入失败: ${data.error || data.details}`);
+        return;
+      }
+      alert(`导入成功！\n房间总数: ${data.summary.totalRooms}\n设备总数: ${data.summary.totalDevices}\n在线设备: ${data.summary.onlineDevices}\n离线设备: ${data.summary.offlineDevices}`);
+      // 刷新数据
+      onSync();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -1424,6 +1446,15 @@ function DevicesPage({
           {/* 右侧按钮 */}
           <div className="flex gap-2 ml-4">
             <button
+              onClick={handleImportData}
+              disabled={importing}
+              className="btn btn-secondary"
+              title="从 insona-devices.json 导入数据"
+            >
+              <i className={`fas fa-file-import ${importing ? "animate-pulse" : ""}`}></i>
+              <span>{importing ? "导入中..." : "导入数据"}</span>
+            </button>
+            <button
               onClick={handleSync}
               disabled={syncing}
               className="btn btn-primary"
@@ -1464,6 +1495,7 @@ function DevicesPage({
               <th>设备ID</th>
               <th>设备名称</th>
               <th>位置</th>
+              <th>Groups</th>
               <th>状态</th>
               <th>Mesh</th>
               <th>今日能耗</th>
@@ -1482,6 +1514,28 @@ function DevicesPage({
                   <td className="text-gray-400">
                     <i className="fas fa-map-marker-alt mr-1 text-blue-400"></i>
                     {getSpaceName(device)}
+                  </td>
+                  <td className="text-gray-400 text-sm">
+                    {device.groups && device.groups.length > 0 ? (
+                      <div className="flex gap-1 flex-wrap">
+                        {device.groups.map((groupId, idx) => {
+                          // 查找对应的房间名称
+                          const room = rooms.find(r => r.roomId === String(groupId));
+                          const roomName = room?.gatewayName || `组${groupId}`;
+                          return (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-900/30 text-blue-300 border border-blue-700/30"
+                            >
+                              {groupId}
+                              {roomName && <span className="ml-1 text-gray-400">({roomName})</span>}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
                   </td>
                   <td>
                     <span className={`status-indicator ${device.alive === 1 ? "status-online" : "status-offline"}`} />
@@ -1526,7 +1580,7 @@ function DevicesPage({
               })
             ) : (
               <tr>
-                <td colSpan={8} className="text-center text-gray-400 py-8">
+                <td colSpan={9} className="text-center text-gray-400 py-8">
                   未找到符合条件的设备
                 </td>
               </tr>
@@ -1609,6 +1663,35 @@ function EditDeviceModal({
               ))}
             </select>
           </div>
+
+          {/* Groups 信息展示 */}
+          {device.groups && device.groups.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">设备所属组 (Groups)</label>
+              <div className="bg-[#101922] border border-[#1c2630] rounded-md px-3 py-2">
+                <div className="flex gap-2 flex-wrap">
+                  {device.groups.map((groupId, idx) => {
+                    // 查找对应的房间名称
+                    const room = rooms.find(r => r.roomId === String(groupId));
+                    const roomName = room?.gatewayName || `组${groupId}`;
+                    return (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-3 py-1 rounded text-sm bg-blue-900/30 text-blue-300 border border-blue-700/30"
+                      >
+                        <span className="font-medium">{groupId}</span>
+                        <span className="mx-1 text-gray-500">-</span>
+                        <span className="text-gray-400">{roomName}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  * Groups 值对应房间 ID,表示设备所属的空间组
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* 操作按钮 */}
           <div className="flex gap-3 pt-4">

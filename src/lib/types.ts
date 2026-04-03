@@ -33,6 +33,7 @@ export interface InSonaDevice {
   func: number;
   funcs: number[];
   value: number[];
+  groups?: number[]; // 设备所属组列表,数值对应 roomId
   // 能耗数据
   power?: number; // 当前功率 (W)
   todayKwh?: number; // 今日能耗 (kWh)

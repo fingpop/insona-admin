@@ -43,6 +43,7 @@ model Device {
   func        Int       // inSona func: 2=onoff, 3=dimming, 4=dual-temp, 5=HSL, 9=panel, 10=sensor, 14=AC, 21=floor-heat, 24=fresh-air
   funcs       String    @default("[]") // JSON-encoded array of all supported funcs
   value       String    @default("[]") // JSON-encoded array
+  groups      String    @default("[]") // JSON-encoded array of group IDs (roomIds)
   meshId      String?
   originalDid String?   // 原始 DID（组设备存储原始 ID，如 "00"）
   ratedPower  Float     @default(10.0) // watts, for energy reference

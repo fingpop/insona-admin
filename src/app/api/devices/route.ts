@@ -76,6 +76,7 @@ export async function GET(request: Request) {
     return {
       ...d,
       funcs: (() => { try { return JSON.parse(d.funcs) as number[]; } catch { return []; } })(),
+      groups: (() => { try { return JSON.parse(d.groups) as number[]; } catch { return []; } })(),
       power: energy?.latestPower ?? null,
       todayKwh: energy?.totalKwh ?? null,
     };
@@ -135,6 +136,7 @@ export async function POST() {
           gatewayName: d.name,
           func: resolvedFunc,
           value: JSON.stringify(d.value ?? []),
+          groups: JSON.stringify(d.groups ?? []),
           meshId: d.meshid || null,
           originalDid: isGroup ? d.did : null,
         },
@@ -149,6 +151,7 @@ export async function POST() {
           func: resolvedFunc,
           funcs: JSON.stringify(deviceFuncs),
           value: JSON.stringify(d.value ?? []),
+          groups: JSON.stringify(d.groups ?? []),
           meshId: d.meshid || null,
           originalDid: isGroup ? d.did : null,
           roomId: result.rooms?.find((r) => String(r.roomId) === String(d.roomId))
