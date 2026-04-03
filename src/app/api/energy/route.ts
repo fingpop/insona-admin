@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isGroupDevice } from "@/lib/types";
 
+// 碳排放系数 (中国平均电网排放因子, 2024年数据)
+const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
@@ -65,8 +68,9 @@ export async function GET(request: Request) {
     (acc, r) => ({
       kwh: acc.kwh + r.kwh,
       peakWatts: Math.max(acc.peakWatts, r.peakWatts),
+      carbonEmission: acc.carbonEmission + r.kwh * CARBON_EMISSION_FACTOR,
     }),
-    { kwh: 0, peakWatts: 0 }
+    { kwh: 0, peakWatts: 0, carbonEmission: 0 }
   );
 
   // Daily totals - if filtering by room, only include devices in that room

@@ -24,7 +24,11 @@ interface EnergyRecord {
 interface DailyTotal {
   date: string;
   kwh: number;
+  carbonEmission: number; // 碳排放 (kgCO₂e)
 }
+
+// 碳排放系数 (中国平均电网排放因子, 2024年数据)
+const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
 
 type DateRange = "today" | "7d" | "30d" | "custom";
 
@@ -37,7 +41,7 @@ function getDateStr(days: number) {
 export default function EnergyPage() {
   const [records, setRecords] = useState<EnergyRecord[]>([]);
   const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
-  const [totals, setTotals] = useState({ kwh: 0, peakWatts: 0 });
+  const [totals, setTotals] = useState({ kwh: 0, peakWatts: 0, carbonEmission: 0 });
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [customFrom, setCustomFrom] = useState(getDateStr(-30));
@@ -75,9 +79,10 @@ export default function EnergyPage() {
           (energyData.dailyTotals ?? []).map((d: { date: string; _sum: { kwh: number | null } }) => ({
             date: d.date,
             kwh: d._sum.kwh ?? 0,
+            carbonEmission: (d._sum.kwh ?? 0) * CARBON_EMISSION_FACTOR,
           }))
         );
-        setTotals(energyData.totals ?? { kwh: 0, peakWatts: 0 });
+        setTotals(energyData.totals ?? { kwh: 0, peakWatts: 0, carbonEmission: 0 });
         setRooms(roomsData.rooms ?? []);
       })
       .finally(() => setLoading(false));
@@ -87,13 +92,14 @@ export default function EnergyPage() {
 
   const exportCSV = () => {
     setExporting(true);
-    const headers = ["日期", "设备名称", "设备类型", "房间", "kWh", "峰值W"];
+    const headers = ["日期", "设备名称", "设备类型", "房间", "kWh", "碳排放(kgCO₂e)", "峰值W"];
     const rows = records.map((r) => [
       r.date,
       r.device?.name ?? r.deviceId,
       r.device?.type ?? "",
       r.device?.room?.name ?? "",
       r.kwh.toFixed(3),
+      (r.kwh * CARBON_EMISSION_FACTOR).toFixed(3),
       r.peakWatts.toFixed(1),
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
@@ -121,7 +127,7 @@ export default function EnergyPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5">
           <p className="text-xs text-[#4a5b70] mb-1">总能耗</p>
           <p className="text-2xl font-semibold text-[#3b9eff]">{totals.kwh.toFixed(2)} kWh</p>
@@ -129,6 +135,11 @@ export default function EnergyPage() {
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5">
           <p className="text-xs text-[#4a5b70] mb-1">峰值功率</p>
           <p className="text-2xl font-semibold text-yellow-400">{totals.peakWatts.toFixed(0)} W</p>
+        </div>
+        <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5">
+          <p className="text-xs text-[#4a5b70] mb-1">总碳排放</p>
+          <p className="text-2xl font-semibold text-green-400">{totals.carbonEmission.toFixed(2)} kgCO₂e</p>
+          <p className="text-xs text-[#4a5b70] mt-2">EF: {CARBON_EMISSION_FACTOR} kgCO₂e/kWh</p>
         </div>
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5">
           <p className="text-xs text-[#4a5b70] mb-1">记录数</p>
@@ -202,7 +213,7 @@ export default function EnergyPage() {
 
       {/* Daily trend chart */}
       <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5">
-        <h2 className="text-sm font-medium text-white mb-4">每日能耗趋势</h2>
+        <h2 className="text-sm font-medium text-white mb-4">每日能耗与碳排放趋势</h2>
         {dailyTotals.length === 0 ? (
           <p className="text-[#4a5b70] text-sm text-center py-8">
             {loading ? "加载中..." : "暂无能耗数据"}
@@ -213,17 +224,34 @@ export default function EnergyPage() {
               <AreaChart data={dailyTotals}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1c2630" />
                 <XAxis dataKey="date" tick={{ fill: "#4a5b70", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#4a5b70", fontSize: 11 }} unit=" kWh" />
+                <YAxis yAxisId="left" tick={{ fill: "#4a5b70", fontSize: 11 }} unit=" kWh" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: "#4a5b70", fontSize: 11 }} unit=" kgCO₂e" />
                 <Tooltip
                   contentStyle={{ background: "#101922", border: "1px solid #1c2630", color: "#c0cad8", fontSize: 12 }}
+                  formatter={(value: number, name: string) => {
+                    if (name === "kwh") return [`${value.toFixed(3)} kWh`, "能耗"];
+                    if (name === "carbonEmission") return [`${value.toFixed(3)} kgCO₂e`, "碳排放"];
+                    return [value, name];
+                  }}
                 />
+                <Legend />
                 <Area
+                  yAxisId="left"
                   type="monotone"
                   dataKey="kwh"
                   stroke="#3b9eff"
                   fill="#3b9eff"
                   fillOpacity={0.15}
-                  name="kWh"
+                  name="kwh"
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="carbonEmission"
+                  stroke="#10b981"
+                  fill="#10b981"
+                  fillOpacity={0.15}
+                  name="carbonEmission"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -249,6 +277,7 @@ export default function EnergyPage() {
                   <th className="text-left text-xs text-[#4a5b70] font-medium px-5 py-3">设备</th>
                   <th className="text-left text-xs text-[#4a5b70] font-medium px-5 py-3">房间</th>
                   <th className="text-right text-xs text-[#4a5b70] font-medium px-5 py-3">kWh</th>
+                  <th className="text-right text-xs text-[#4a5b70] font-medium px-5 py-3">碳排放(kgCO₂e)</th>
                   <th className="text-right text-xs text-[#4a5b70] font-medium px-5 py-3">峰值 W</th>
                 </tr>
               </thead>
@@ -259,6 +288,7 @@ export default function EnergyPage() {
                     <td className="text-[#c0cad8] px-5 py-3">{r.device?.name ?? r.deviceId}</td>
                     <td className="text-[#4a5b70] px-5 py-3">{r.device?.room?.name ?? "—"}</td>
                     <td className="text-[#3b9eff] text-right px-5 py-3">{r.kwh.toFixed(3)}</td>
+                    <td className="text-green-400 text-right px-5 py-3">{(r.kwh * CARBON_EMISSION_FACTOR).toFixed(3)}</td>
                     <td className="text-yellow-400 text-right px-5 py-3">{r.peakWatts.toFixed(1)}</td>
                   </tr>
                 ))}

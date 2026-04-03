@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+// 碳排放系数 (中国平均电网排放因子, 2024年数据)
+const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
+
 // GET - 获取当天能耗统计
 export async function GET(request: Request) {
   try {
@@ -39,6 +42,7 @@ export async function GET(request: Request) {
 
     // 统计总能耗
     const totalKwh = todayData.reduce((sum, d) => sum + d.kwh, 0);
+    const totalCarbonEmission = totalKwh * CARBON_EMISSION_FACTOR;
 
     // 按设备分组统计
     const deviceStats = new Map<
@@ -122,6 +126,7 @@ export async function GET(request: Request) {
     return Response.json({
       date: today,
       totalKwh,
+      totalCarbonEmission,
       recordCount: todayData.length,
       deviceStats: Array.from(deviceStats.values()),
       roomStats: Array.from(roomStats.values()),

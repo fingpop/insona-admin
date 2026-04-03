@@ -160,6 +160,7 @@ interface Automation {
 interface EnergyData {
   date: string;
   value: number;
+  carbonEmission?: number;
 }
 
 /**
@@ -1138,12 +1139,13 @@ function EnergyChart({ data }: { data: EnergyData[] }) {
     <div className="h-64 flex items-end justify-between gap-2 px-2">
       {data.map((item, index) => {
         const height = 40 + ((item.value - minValue) / range) * 160;
+        const carbonEmission = item.carbonEmission ?? 0;
         return (
           <div key={index} className="flex-1 flex flex-col items-center gap-2">
             <div
               className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-500 hover:to-blue-300"
               style={{ height: `${height}px`, minHeight: "20px" }}
-              title={`${item.date}: ${item.value} kWh`}
+              title={`${item.date}: ${item.value.toFixed(3)} kWh\n碳排放: ${carbonEmission.toFixed(3)} kgCO₂e`}
             />
             <span className="text-xs text-gray-500">{item.date}</span>
           </div>
@@ -3950,18 +3952,22 @@ function ScenesPage({
 }
 
 // ==================== 能耗分析页面 ====================
+// 碳排放系数 (中国平均电网排放因子, 2024年数据)
+const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
+
 function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: SpaceNode[] }) {
   const [period, setPeriod] = useState(30);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
   const [todayChartType, setTodayChartType] = useState<"hourly" | "room">("hourly"); // 今日能耗图表类型
   const [energyData, setEnergyData] = useState<{
     records: { deviceId: string; date: string; kwh: number; device: { name: string; room?: { name: string } } }[];
-    totals: { kwh: number };
+    totals: { kwh: number; carbonEmission: number };
     dailyTotals: { date: string; _sum: { kwh: number | null } }[];
   } | null>(null);
   const [todayEnergy, setTodayEnergy] = useState<{
     date: string;
     totalKwh: number;
+    totalCarbonEmission: number;
     recordCount: number;
     deviceStats: any[];
     roomStats: any[];
@@ -4024,11 +4030,14 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
   const dailyData = energyData?.dailyTotals?.map((d) => ({
     date: d.date.slice(5), // MM-DD
     value: d._sum.kwh ?? 0,
+    carbonEmission: (d._sum.kwh ?? 0) * CARBON_EMISSION_FACTOR,
   })) ?? [];
 
-  // 计算总能耗
+  // 计算总能耗和总碳排放
   const totalKwh = energyData?.totals?.kwh ?? 0;
+  const totalCarbonEmission = energyData?.totals?.carbonEmission ?? 0;
   const avgKwh = dailyData.length > 0 ? totalKwh / dailyData.length : 0;
+  const avgCarbonEmission = dailyData.length > 0 ? totalCarbonEmission / dailyData.length : 0;
 
   // 按房间分组的能耗数据
   const roomEnergyData = useMemo(() => {
@@ -4060,7 +4069,7 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
     <div className="fade-in">
       {/* 今日能耗统计卡片 */}
       {todayEnergy && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
           <div className="stat-card">
             <p className="text-sm text-blue-200 mb-1">今日总能耗 (kWh)</p>
             <h3 className="text-3xl font-bold text-white">{todayEnergy.totalKwh.toFixed(4)}</h3>
@@ -4069,7 +4078,14 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
             </p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }}>
-            <p className="text-sm text-green-200 mb-1">活跃设备</p>
+            <p className="text-sm text-green-200 mb-1">今日碳排放 (kgCO₂e)</p>
+            <h3 className="text-3xl font-bold text-white">{todayEnergy.totalCarbonEmission.toFixed(4)}</h3>
+            <p className="text-xs text-gray-400 mt-2">
+              EF: {CARBON_EMISSION_FACTOR}
+            </p>
+          </div>
+          <div className="stat-card" style={{ background: "linear-gradient(135deg, #0891b2 0%, #0e7490 100%)" }}>
+            <p className="text-sm text-cyan-200 mb-1">活跃设备</p>
             <h3 className="text-3xl font-bold text-white">{todayEnergy.deviceStats.length}</h3>
             <p className="text-xs text-gray-400 mt-2">
               {todayEnergy.roomStats.length} 个空间
@@ -4078,10 +4094,12 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" }}>
             <p className="text-sm text-purple-200 mb-1">总能耗 (kWh)</p>
             <h3 className="text-3xl font-bold text-white">{totalKwh.toFixed(2)}</h3>
+            <p className="text-xs text-gray-400 mt-2">历史累计</p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
-            <p className="text-sm text-red-200 mb-1">日均能耗 (kWh)</p>
-            <h3 className="text-3xl font-bold text-white">{avgKwh.toFixed(2)}</h3>
+            <p className="text-sm text-red-200 mb-1">总碳排放 (kgCO₂e)</p>
+            <h3 className="text-3xl font-bold text-white">{totalCarbonEmission.toFixed(2)}</h3>
+            <p className="text-xs text-gray-400 mt-2">日均: {avgCarbonEmission.toFixed(2)}</p>
           </div>
         </div>
       )}
