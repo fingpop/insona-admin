@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -63,7 +63,7 @@ export default function EnergyPage() {
     return { from, to };
   };
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true);
     const { from, to } = getDateParams();
     const params = new URLSearchParams({ from, to });
@@ -86,9 +86,9 @@ export default function EnergyPage() {
         setRooms(roomsData.rooms ?? []);
       })
       .finally(() => setLoading(false));
-  };
+  }, [dateRange, roomFilter, customFrom, customTo]);
 
-  useEffect(() => { fetchData(); }, [dateRange, roomFilter, customFrom, customTo]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const exportCSV = () => {
     setExporting(true);

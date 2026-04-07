@@ -34,11 +34,13 @@ export async function GET(request: Request) {
     if (to) (where.date as Record<string, string>).lte = to;
   }
 
-  // 从 EnergyData 表读取并汇总（而不是 EnergyRecord）
+  // 限制查询范围，避免一次性加载过多数据
+  const limit = 10000; // 最大返回记录数
   const energyDataRecords = await prisma.energyData.findMany({
     where,
     include: { device: { include: { room: true } } },
     orderBy: { timestamp: "desc" },
+    take: limit, // 添加限制
   });
 
   // 按设备和日期汇总

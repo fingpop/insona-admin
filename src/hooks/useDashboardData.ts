@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type {
   DashboardStats,
   DeviceTypeDistribution,
@@ -34,7 +34,7 @@ export function useDashboardData(dateRange: { from: string; to: string }) {
     error: null,
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setData((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
@@ -85,11 +85,11 @@ export function useDashboardData(dateRange: { from: string; to: string }) {
         error: err instanceof Error ? err.message : "获取数据失败",
       }));
     }
-  };
+  }, [dateRange.from, dateRange.to]);
 
   useEffect(() => {
     fetchData();
-  }, [dateRange.from, dateRange.to]);
+  }, [fetchData]);
 
   return { data, refetch: fetchData };
 }

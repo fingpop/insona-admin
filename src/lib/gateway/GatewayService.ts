@@ -523,42 +523,75 @@ class GatewayService {
         });
       }
 
-      // 批量保存到数据库（使用 upsert 自动去重）
+      // 批量保存到数据库（使用事务避免连接池耗尽）
       const today = new Date().toISOString().split("T")[0];
-      let savedCount = 0;
-      let skippedCount = 0;
 
-      for (const point of dataPoints) {
-        try {
-          await prisma.energyData.upsert({
-            where: {
-              deviceId_sequence: {
-                deviceId: did as string,
-                sequence: point.sequence
-              }
-            },
-            update: {
-              kwh: point.kwh,
-              percent: point.percent,
-            },
-            create: {
+      // 准备批量 upsert 操作
+      const upsertOperations = dataPoints.map((point) =>
+        prisma.energyData.upsert({
+          where: {
+            deviceId_sequence: {
               deviceId: did as string,
-              sequence: point.sequence,
-              date: today,
-              kwh: point.kwh,
-              percent: point.percent,
-              power: power as number,
-              period: period as number,
+              sequence: point.sequence
             }
-          });
-          savedCount++;
-        } catch (err) {
-          debug(`[ENERGY] Failed to save sequence ${point.sequence}:`, err);
-          skippedCount++;
-        }
-      }
+          },
+          update: {
+            kwh: point.kwh,
+            percent: point.percent,
+          },
+          create: {
+            deviceId: did as string,
+            sequence: point.sequence,
+            date: today,
+            kwh: point.kwh,
+            percent: point.percent,
+            power: power as number,
+            period: period as number,
+          }
+        })
+      );
 
-      debug(`[ENERGY] Saved ${savedCount} data points, skipped ${skippedCount}`);
+      // 使用事务批量执行，避免多次数据库连接
+      try {
+        await prisma.$transaction(upsertOperations);
+        debug(`[ENERGY] Saved ${upsertOperations.length} data points in batch`);
+      } catch (err) {
+        debug(`[ENERGY] Batch save failed, falling back to individual saves:`, err);
+
+        // 降级策略：如果批量失败，逐条保存
+        let savedCount = 0;
+        let skippedCount = 0;
+        for (const point of dataPoints) {
+          try {
+            await prisma.energyData.upsert({
+              where: {
+                deviceId_sequence: {
+                  deviceId: did as string,
+                  sequence: point.sequence
+                }
+              },
+              update: {
+                kwh: point.kwh,
+                percent: point.percent,
+              },
+              create: {
+                deviceId: did as string,
+                sequence: point.sequence,
+                date: today,
+                kwh: point.kwh,
+                percent: point.percent,
+                power: power as number,
+                period: period as number,
+              }
+            });
+            savedCount++;
+          } catch (err) {
+            debug(`[ENERGY] Failed to save sequence ${point.sequence}:`, err);
+            skippedCount++;
+          }
+        }
+        debug(`[ENERGY] Fallback: saved ${savedCount} data points, skipped ${skippedCount}`);
+      }
     }
   }
 }

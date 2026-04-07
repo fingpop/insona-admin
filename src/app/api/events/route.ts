@@ -1,11 +1,12 @@
 import { gatewayService } from "@/lib/gateway/GatewayService";
-import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const encoder = new TextEncoder();
+  let unsubscribe: (() => void) | null = null;
+  let keepAlive: NodeJS.Timeout | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -13,28 +14,36 @@ export async function GET() {
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`));
 
       // Subscribe to gateway events
-      const unsubscribe = gatewayService.subscribeSSE((payload: string) => {
+      unsubscribe = gatewayService.subscribeSSE((payload: string) => {
         try {
           controller.enqueue(encoder.encode(payload));
         } catch {
-          // Stream closed
+          // Stream closed, cleanup immediately
+          if (unsubscribe) unsubscribe();
+          if (keepAlive) clearInterval(keepAlive);
         }
       });
 
       // Heartbeat keep-alive every 30s
-      const keepAlive = setInterval(() => {
+      keepAlive = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`: keepalive\n\n`));
         } catch {
-          clearInterval(keepAlive);
+          // Stream closed, cleanup immediately
+          if (keepAlive) clearInterval(keepAlive);
         }
       }, 30_000);
-
-      // Cleanup on abort
-      return () => {
+    },
+    cancel() {
+      // 确保在流被取消时清理资源
+      if (unsubscribe) {
         unsubscribe();
+        unsubscribe = null;
+      }
+      if (keepAlive) {
         clearInterval(keepAlive);
-      };
+        keepAlive = null;
+      }
     },
   });
 

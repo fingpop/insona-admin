@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import type { RealtimePowerData } from "@/lib/types";
 
 interface RealtimePower {
@@ -20,9 +20,19 @@ export function useRealtimePower(intervalSeconds: number = 10) {
     error: null,
   });
 
-  const fetchPower = async () => {
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const fetchPower = useCallback(async () => {
+    // 取消之前的请求（避免并发请求累积）
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
-      const res = await fetch("/api/dashboard/realtime-power?lastMinutes=60");
+      const res = await fetch("/api/dashboard/realtime-power?lastMinutes=60", {
+        signal: abortControllerRef.current.signal,
+      });
       const data = await res.json();
 
       setPower({
@@ -34,6 +44,9 @@ export function useRealtimePower(intervalSeconds: number = 10) {
         error: null,
       });
     } catch (err) {
+      // 忽略 abort 错误
+      if (err instanceof Error && err.name === 'AbortError') return;
+
       console.error("Realtime power fetch error:", err);
       setPower((prev) => ({
         ...prev,
@@ -41,12 +54,19 @@ export function useRealtimePower(intervalSeconds: number = 10) {
         error: err instanceof Error ? err.message : "获取功率数据失败",
       }));
     }
-  };
+  }, []);
 
   // 初始加载
   useEffect(() => {
     fetchPower();
-  }, []);
+
+    return () => {
+      // 清理未完成的请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchPower]);
 
   // 定时轮询
   useEffect(() => {
@@ -54,7 +74,7 @@ export function useRealtimePower(intervalSeconds: number = 10) {
 
     const timer = setInterval(fetchPower, intervalSeconds * 1000);
     return () => clearInterval(timer);
-  }, [intervalSeconds]);
+  }, [intervalSeconds, fetchPower]);
 
   return { power, refetch: fetchPower };
 }
