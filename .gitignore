@@ -1,7 +1,7 @@
 node_modules/
 .next/
 # .env  # 注释掉以包含环境配置文件
-# *.db  # 注释掉以包含数据库文件
+*.db    # 排除数据库文件（运行时数据不应该提交）
 *.db-journal
 .DS_Store
 tsconfig.tsbuildinfo
