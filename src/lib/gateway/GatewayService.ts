@@ -499,11 +499,18 @@ class GatewayService {
     if (energy && Array.isArray(energy) && energy.length >= 2) {
       debug(`[ENERGY] Processing ${energy.length / 2} data points for device ${did}`);
 
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      const currentHour = now.getHours();
+
       const dataPoints: Array<{
         sequence: number;
         percent: number;
         kwh: number;
       }> = [];
+
+      let totalKwh = 0;
+      let maxPower = 0;
 
       // 解析 energy 数组
       for (let i = 0; i < energy.length; i += 2) {
@@ -521,76 +528,108 @@ class GatewayService {
           percent: percentValue,
           kwh
         });
+
+        totalKwh += kwh;
+        maxPower = Math.max(maxPower, actualPowerWatts);
       }
 
-      // 批量保存到数据库（使用事务避免连接池耗尽）
-      const today = new Date().toISOString().split("T")[0];
-
-      // 准备批量 upsert 操作
-      const upsertOperations = dataPoints.map((point) =>
-        prisma.energyData.upsert({
-          where: {
-            deviceId_sequence: {
-              deviceId: did as string,
-              sequence: point.sequence
-            }
-          },
-          update: {
-            kwh: point.kwh,
-            percent: point.percent,
-          },
-          create: {
+      try {
+        // 1. 写入明细（用于实时展示，保留最近 1 小时）
+        await prisma.energyData.createMany({
+          data: dataPoints.map(p => ({
             deviceId: did as string,
-            sequence: point.sequence,
+            sequence: p.sequence,
             date: today,
-            kwh: point.kwh,
-            percent: point.percent,
+            kwh: p.kwh,
+            percent: p.percent,
             power: power as number,
             period: period as number,
+          })),
+          skipDuplicates: true
+        });
+
+        // 2. 更新小时聚合
+        const existingHourly = await prisma.energyHourly.findUnique({
+          where: {
+            deviceId_date_hour: {
+              deviceId: did as string,
+              date: today,
+              hour: currentHour
+            }
           }
-        })
-      );
+        });
 
-      // 使用事务批量执行，避免多次数据库连接
-      try {
-        await prisma.$transaction(upsertOperations);
-        debug(`[ENERGY] Saved ${upsertOperations.length} data points in batch`);
-      } catch (err) {
-        debug(`[ENERGY] Batch save failed, falling back to individual saves:`, err);
-
-        // 降级策略：如果批量失败，逐条保存
-        let savedCount = 0;
-        let skippedCount = 0;
-        for (const point of dataPoints) {
-          try {
-            await prisma.energyData.upsert({
-              where: {
-                deviceId_sequence: {
-                  deviceId: did as string,
-                  sequence: point.sequence
-                }
-              },
-              update: {
-                kwh: point.kwh,
-                percent: point.percent,
-              },
-              create: {
+        if (existingHourly) {
+          await prisma.energyHourly.update({
+            where: {
+              deviceId_date_hour: {
                 deviceId: did as string,
-                sequence: point.sequence,
                 date: today,
-                kwh: point.kwh,
-                percent: point.percent,
-                power: power as number,
-                period: period as number,
+                hour: currentHour
               }
-            });
-            savedCount++;
-          } catch (err) {
-            debug(`[ENERGY] Failed to save sequence ${point.sequence}:`, err);
-            skippedCount++;
-          }
+            },
+            data: {
+              kwh: existingHourly.kwh + totalKwh,
+              peakWatts: Math.max(existingHourly.peakWatts, maxPower),
+              dataCount: existingHourly.dataCount + dataPoints.length
+            }
+          });
+        } else {
+          await prisma.energyHourly.create({
+            data: {
+              deviceId: did as string,
+              date: today,
+              hour: currentHour,
+              kwh: totalKwh,
+              peakWatts: maxPower,
+              dataCount: dataPoints.length
+            }
+          });
         }
-        debug(`[ENERGY] Fallback: saved ${savedCount} data points, skipped ${skippedCount}`);
+
+        // 3. 更新日汇总
+        const existingRecord = await prisma.energyRecord.findUnique({
+          where: {
+            deviceId_date: {
+              deviceId: did as string,
+              date: today
+            }
+          }
+        });
+
+        if (existingRecord) {
+          await prisma.energyRecord.update({
+            where: {
+              deviceId_date: {
+                deviceId: did as string,
+                date: today
+              }
+            },
+            data: {
+              kwh: existingRecord.kwh + totalKwh,
+              peakWatts: Math.max(existingRecord.peakWatts, maxPower)
+            }
+          });
+        } else {
+          await prisma.energyRecord.create({
+            data: {
+              deviceId: did as string,
+              date: today,
+              kwh: totalKwh,
+              peakWatts: maxPower
+            }
+          });
+        }
+
+        // 4. 清理旧明细（保留最近 1 小时）
+        const cutoff = new Date(Date.now() - 3600000);
+        await prisma.energyData.deleteMany({
+          where: { timestamp: { lt: cutoff } }
+        });
+
+        debug(`[ENERGY] Saved ${dataPoints.length} data points, hourly=${currentHour}, total=${totalKwh.toFixed(4)}kWh`);
+      } catch (err) {
+        debug(`[ENERGY] Failed to save energy data:`, err);
       }
     }
   }

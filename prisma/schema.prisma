@@ -55,6 +55,7 @@ model Device {
   energySnapshots  EnergySnapshot[]
   energyRecords    EnergyRecord[]
   energyData       EnergyData[]
+  energyHourly     EnergyHourly[]
   scheduledTasks   ScheduledTask[]
   dashboardEvents  DashboardEvent[]
 
@@ -134,6 +135,23 @@ model EnergyRecord {
   peakWatts Float    @default(0)
 
   @@unique([deviceId, date])
+  @@index([date])
+}
+
+// 小时级聚合表（用于历史数据查询和趋势分析）
+model EnergyHourly {
+  id        String   @id @default(cuid())
+  deviceId  String
+  date      String   // YYYY-MM-DD
+  hour      Int      // 0-23
+  kwh       Float    @default(0)
+  peakWatts Float    @default(0)
+  dataCount Int      @default(0)  // 数据点数量
+
+  device    Device   @relation(fields: [deviceId], references: [id])
+
+  @@unique([deviceId, date, hour])  // 每个设备每天每小时的唯一记录
+  @@index([deviceId, date])
   @@index([date])
 }
 
