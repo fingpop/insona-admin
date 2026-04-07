@@ -14,6 +14,8 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
+  const today = new Date().toISOString().split("T")[0];
+
   // Build device filter
   let deviceIds: string[] | undefined;
   if (deviceId) {
@@ -34,36 +36,16 @@ export async function GET(request: Request) {
     if (to) (where.date as Record<string, string>).lte = to;
   }
 
-  // 限制查询范围，避免一次性加载过多数据
-  const limit = 10000; // 最大返回记录数
-  const energyDataRecords = await prisma.energyData.findMany({
+  // 从 EnergyRecord 查询日汇总数据（包含历史数据）
+  const records = await prisma.energyRecord.findMany({
     where,
-    include: { device: { include: { room: true } } },
-    orderBy: { timestamp: "desc" },
-    take: limit, // 添加限制
+    include: {
+      device: {
+        include: { room: true }
+      }
+    },
+    orderBy: { date: "desc" }
   });
-
-  // 按设备和日期汇总
-  const recordsMap = new Map<string, { deviceId: string; date: string; kwh: number; peakWatts: number; device: any }>();
-
-  for (const record of energyDataRecords) {
-    const key = `${record.deviceId}_${record.date}`;
-    const existing = recordsMap.get(key);
-    if (existing) {
-      existing.kwh += record.kwh;
-      existing.peakWatts = Math.max(existing.peakWatts, record.power * (record.percent / 100));
-    } else {
-      recordsMap.set(key, {
-        deviceId: record.deviceId,
-        date: record.date,
-        kwh: record.kwh,
-        peakWatts: record.power * (record.percent / 100),
-        device: record.device,
-      });
-    }
-  }
-
-  const records = Array.from(recordsMap.values());
 
   // Aggregate totals
   const totals = records.reduce(
@@ -75,22 +57,11 @@ export async function GET(request: Request) {
     { kwh: 0, peakWatts: 0, carbonEmission: 0 }
   );
 
-  // Daily totals - if filtering by room, only include devices in that room
-  let dailyWhere = { ...where };
-  if (roomId && !deviceId) {
-    // Need to filter by specific devices in the room
-    const devices = await prisma.device.findMany({
-      where: { roomId },
-      select: { id: true },
-    });
-    dailyWhere.deviceId = { in: devices.map((d) => d.id) };
-  }
-
-  // 从 EnergyData 汇总每日能耗
-  const dailyData = await prisma.energyData.groupBy({
+  // Daily totals - 从 EnergyRecord 汇总（而非 EnergyData）
+  const dailyData = await prisma.energyRecord.groupBy({
     by: ["date"],
     _sum: { kwh: true },
-    where: dailyWhere,
+    where,
     orderBy: { date: "asc" },
   });
 
