@@ -331,6 +331,26 @@ class GatewayService {
 
     // 保存设备数据到数据库
     if (result && typeof result === "object" && "devices" in result) {
+      // 先同步房间数据（确保 roomId 外键约束有效）
+      if ("rooms" in result && Array.isArray(result.rooms)) {
+        const gatewayRooms = (result as unknown as { rooms: Array<{ roomId: number; name: string }> }).rooms;
+        for (const room of gatewayRooms) {
+          try {
+            await prisma.room.upsert({
+              where: { id: String(room.roomId) },
+              update: { name: room.name },
+              create: {
+                id: String(room.roomId),
+                name: room.name,
+                type: this.inferRoomType(room.name),
+              },
+            });
+          } catch (err) {
+            debug(`[SYNC] Failed to save room ${room.roomId}:`, err);
+          }
+        }
+      }
+
       const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
 
       for (const dev of gatewayDevices) {
@@ -344,6 +364,24 @@ class GatewayService {
         const alive = Number(dev.alive ?? 1);
         const value = dev.value !== undefined ? JSON.stringify(dev.value) : "[]";
         const funcs = dev.funcs ? JSON.stringify(dev.funcs) : "[]";
+        const groups = dev.groups ? JSON.stringify(dev.groups) : "[]";
+
+        // 从 groups 或网关 roomId 提取房间 ID（仅在创建新设备时设置）
+        let roomId: string | undefined = undefined;
+
+        // 优先从 groups 提取
+        if (dev.groups && Array.isArray(dev.groups) && dev.groups.length >= 2) {
+          // groups 格式：[0, room_id]
+          const groupId = dev.groups[1];
+          if (groupId && groupId !== 0) {
+            roomId = String(groupId);
+          }
+        }
+
+        // 如果 groups 为空或无效，使用网关返回的 roomId
+        if (!roomId && dev.roomId) {
+          roomId = String(dev.roomId);
+        }
 
         try {
           // Upsert 设备数据
@@ -359,6 +397,7 @@ class GatewayService {
               alive,
               value,
               funcs,
+              groups,
               gatewayName: name,
             },
             create: {
@@ -372,8 +411,10 @@ class GatewayService {
               alive,
               value,
               funcs,
+              groups,
               gatewayName: name,
               ratedPower: 10.0,
+              roomId,
             },
           });
         } catch (err) {
@@ -662,6 +703,17 @@ class GatewayService {
         debug(`[ENERGY] Failed to save energy data:`, err);
       }
     }
+  }
+
+  // 根据房间名称推断房间类型（参考 import-data/route.ts）
+  private inferRoomType(name: string): string {
+    if (name.includes('F') && name.match(/\dF/)) {
+      const floorMatch = name.match(/(\d)F/);
+      if (floorMatch && !name.includes('会议室') && !name.includes('办公室') && !name.includes('卫生间')) {
+        return 'floor';
+      }
+    }
+    return 'room';
   }
 }
 

@@ -11,10 +11,13 @@ export async function POST() {
 
     // 2. Clear all database tables (in reverse dependency order)
     await prisma.sceneAction.deleteMany();
+    await prisma.scheduledTask.deleteMany();
     await prisma.scene.deleteMany();
+    await prisma.dashboardEvent.deleteMany();
+    await prisma.energyData.deleteMany();
+    await prisma.energyHourly.deleteMany();
     await prisma.energySnapshot.deleteMany();
     await prisma.energyRecord.deleteMany();
-    await prisma.scheduledTask.deleteMany();
     await prisma.device.deleteMany();
     await prisma.room.deleteMany();
     await prisma.gateway.deleteMany();
