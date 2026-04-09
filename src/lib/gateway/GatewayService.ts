@@ -534,9 +534,29 @@ class GatewayService {
       }
 
       try {
-        // 1. 写入明细（用于实时展示，保留最近 1 小时）
+        // 1. 查询已存在的 sequence，过滤重复数据
+        const existingSequences = await prisma.energyData.findMany({
+          where: {
+            deviceId: did as string,
+            sequence: { in: dataPoints.map(p => p.sequence) }
+          },
+          select: { sequence: true }
+        });
+
+        const existingSet = new Set(existingSequences.map(s => s.sequence));
+        const newPoints = dataPoints.filter(p => !existingSet.has(p.sequence));
+
+        // 如果没有新数据，直接返回（避免重复累加）
+        if (newPoints.length === 0) {
+          debug(`[ENERGY] All data points are duplicates for device ${did}, skipping`);
+          return;
+        }
+
+        debug(`[ENERGY] Inserting ${newPoints.length} new points (filtered ${dataPoints.length - newPoints.length} duplicates)`);
+
+        // 2. 写入新数据到明细表
         await prisma.energyData.createMany({
-          data: dataPoints.map(p => ({
+          data: newPoints.map(p => ({
             deviceId: did as string,
             sequence: p.sequence,
             date: today,
@@ -544,9 +564,19 @@ class GatewayService {
             percent: p.percent,
             power: power as number,
             period: period as number,
-          })),
-          skipDuplicates: true
+          }))
         });
+
+        // 3. 计算新数据的能耗值（只累加新插入的）
+        totalKwh = newPoints.reduce((sum, p) => sum + p.kwh, 0);
+        maxPower = newPoints.reduce((max, p) => {
+          const powerWatts = (power as number) * (p.percent / 100);
+          return Math.max(max, powerWatts);
+        }, 0);
+
+        // 更新 dataPoints 为新插入的数据点（用于后续聚合）
+        dataPoints.length = 0;
+        dataPoints.push(...newPoints);
 
         // 2. 更新小时聚合
         const existingHourly = await prisma.energyHourly.findUnique({
