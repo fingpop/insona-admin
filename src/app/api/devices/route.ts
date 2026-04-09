@@ -43,29 +43,40 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  // 从 EnergyData 表获取今日能耗数据（汇总）
+  // 从 EnergyRecord 表获取今日能耗数据（日汇总）
   const today = new Date().toISOString().split("T")[0];
-  const energyDataRecords = await prisma.energyData.findMany({
+  const energyRecords = await prisma.energyRecord.findMany({
     where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
+  });
+
+  // 从 EnergyData 表获取最新功率（最近 1 小时）
+  const recentEnergyData = await prisma.energyData.findMany({
+    where: {
+      timestamp: { gte: new Date(Date.now() - 3600000) },
+      deviceId: { in: devices.map((d) => d.id) }
+    },
     orderBy: { sequence: "desc" },
   });
 
-  // 汇总每个设备的能耗和最新功率
-  const energyMap = new Map<string, { totalKwh: number; latestPower: number; latestSequence: number }>();
-  for (const record of energyDataRecords) {
-    const existing = energyMap.get(record.deviceId);
+  // 构建能耗映射：totalKwh 来自 EnergyRecord，latestPower 来自 EnergyData
+  const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
+  for (const record of energyRecords) {
+    energyMap.set(record.deviceId, {
+      totalKwh: record.kwh,
+      latestPower: record.peakWatts, // 默认使用峰值功率
+    });
+  }
+
+  // 更新最新功率（从最近 1 小时的明细数据）
+  for (const data of recentEnergyData) {
+    const existing = energyMap.get(data.deviceId);
     if (existing) {
-      existing.totalKwh += record.kwh;
-      // 更新最新功率（sequence更大）
-      if (record.sequence > existing.latestSequence) {
-        existing.latestSequence = record.sequence;
-        existing.latestPower = record.power;
-      }
+      existing.latestPower = data.power;
     } else {
-      energyMap.set(record.deviceId, {
-        totalKwh: record.kwh,
-        latestPower: record.power,
-        latestSequence: record.sequence,
+      // 如果今天还没有能耗记录，创建新条目
+      energyMap.set(data.deviceId, {
+        totalKwh: 0,
+        latestPower: data.power,
       });
     }
   }
@@ -171,29 +182,38 @@ export async function POST() {
       orderBy: { name: "asc" },
     });
 
-    // 从 EnergyData 表获取今日能耗数据（汇总）
+    // 从 EnergyRecord 表获取今日能耗数据（日汇总）
     const today = new Date().toISOString().split("T")[0];
-    const energyDataRecords = await prisma.energyData.findMany({
+    const energyRecords = await prisma.energyRecord.findMany({
       where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
+    });
+
+    // 从 EnergyData 表获取最新功率（最近 1 小时）
+    const recentEnergyData = await prisma.energyData.findMany({
+      where: {
+        timestamp: { gte: new Date(Date.now() - 3600000) },
+        deviceId: { in: devices.map((d) => d.id) }
+      },
       orderBy: { sequence: "desc" },
     });
 
-    // 汇总每个设备的能耗和最新功率
-    const energyMap = new Map<string, { totalKwh: number; latestPower: number; latestSequence: number }>();
-    for (const record of energyDataRecords) {
-      const existing = energyMap.get(record.deviceId);
+    // 构建能耗映射
+    const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
+    for (const record of energyRecords) {
+      energyMap.set(record.deviceId, {
+        totalKwh: record.kwh,
+        latestPower: record.peakWatts,
+      });
+    }
+
+    for (const data of recentEnergyData) {
+      const existing = energyMap.get(data.deviceId);
       if (existing) {
-        existing.totalKwh += record.kwh;
-        // 更新最新功率（sequence更大）
-        if (record.sequence > existing.latestSequence) {
-          existing.latestSequence = record.sequence;
-          existing.latestPower = record.power;
-        }
+        existing.latestPower = data.power;
       } else {
-        energyMap.set(record.deviceId, {
-          totalKwh: record.kwh,
-          latestPower: record.power,
-          latestSequence: record.sequence,
+        energyMap.set(data.deviceId, {
+          totalKwh: 0,
+          latestPower: data.power,
         });
       }
     }
