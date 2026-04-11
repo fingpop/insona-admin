@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
 import { InSonaDevice, DEVICE_TYPE_LABELS, FUNC_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
+import HomeLayout from "./home-layout";
 
 // 动态导入组设备页面（避免打包问题）
 const GroupsPage = dynamic(() => import("@/app/(dashboard)/groups/page"), {
@@ -571,14 +572,16 @@ export default function ControlPanel() {
           onLangChange={setCurrentLang}
         />
 
-        {/* 页面内容 */}
-        <div className="p-8">
+        {/* 页面内容 - 系统首页使用独立页面 */}
+        <div className="p-4">
           {currentPage === "dashboard" && (
-            <DashboardPage
-              stats={stats}
-              devices={dbDevices.map(toInSonaDevice)}
-              spaces={spaces}
-              onDeviceClick={openDeviceDrawer}
+            <HomeLayout
+              gatewayStatus={gatewayStatus}
+              gatewayIP={gatewayIP}
+              onConnect={connectGateway}
+              onDisconnect={disconnectGateway}
+              currentLang={currentLang}
+              onLangChange={setCurrentLang}
             />
           )}
           {currentPage === "devices" && (

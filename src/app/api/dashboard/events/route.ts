@@ -26,15 +26,25 @@ export async function GET(request: Request) {
       take: limit,
     });
 
-    const formattedEvents = events.map((e) => ({
-      id: e.id,
-      timestamp: e.timestamp.toISOString(),
-      type: e.type,
-      deviceId: e.deviceId,
-      deviceName: e.device?.name || "未知设备",
-      message: e.message,
-      status: e.status,
-    }));
+    const formattedEvents = events.map((e) => {
+      // 格式化时间为 HH:MM:SS
+      const timeStr = e.timestamp.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+
+      return {
+        id: e.id,
+        timestamp: timeStr,
+        type: e.type,
+        deviceId: e.deviceId,
+        deviceName: e.device?.name || "未知设备",
+        message: e.message,
+        status: e.status,
+      };
+    });
 
     return Response.json({
       events: formattedEvents,

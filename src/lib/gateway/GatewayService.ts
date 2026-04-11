@@ -280,6 +280,12 @@ class GatewayService {
           debug("[ENERGY] Failed to save:", err);
         });
       }
+      // 处理设备状态变化事件（创建 DashboardEvent）
+      else if (msg.evt === "onoff" || msg.evt === "status") {
+        this._handleDeviceEvent(msg).catch((err) => {
+          debug("[DEVICE EVENT] Failed to save:", err);
+        });
+      }
     } else {
       debug(`[WARN] Unknown message type: ${method}`);
     }
@@ -485,6 +491,56 @@ class GatewayService {
       } catch {
         this.sseConsumers.delete(consumer);
       }
+    }
+  }
+
+  // ─── Device event handling ─────────────────────────────────────────────────
+
+  private async _handleDeviceEvent(msg: Record<string, unknown>) {
+    const { did, evt, value } = msg;
+
+    if (!did) {
+      debug("[DEVICE EVENT] Missing device ID");
+      return;
+    }
+
+    // 查询设备信息
+    const device = await prisma.device.findUnique({ where: { id: did as string } });
+    if (!device) {
+      debug("[DEVICE EVENT] Device not found in database:", did);
+      return;
+    }
+
+    // 根据事件类型创建不同的事件记录
+    let eventType: string;
+    let eventMessage: string;
+
+    if (evt === "onoff") {
+      const isOn = Array.isArray(value) && value[0] === 1;
+      eventType = "device_action";
+      eventMessage = `${device.name} ${isOn ? "已开启" : "已关闭"}`;
+    } else if (evt === "status") {
+      const isOnline = Array.isArray(value) && value[0] === 1;
+      eventType = isOnline ? "online" : "offline";
+      eventMessage = `${device.name} ${isOnline ? "已上线" : "已离线"}`;
+    } else {
+      eventType = "device_event";
+      eventMessage = `${device.name}: ${JSON.stringify(msg)}`;
+    }
+
+    try {
+      await prisma.dashboardEvent.create({
+        data: {
+          type: eventType,
+          deviceId: did as string,
+          message: eventMessage,
+          status: "unread",
+          metadata: JSON.stringify(msg),
+        },
+      });
+      debug(`[DEVICE EVENT] Created event for ${did}: ${eventMessage}`);
+    } catch (err) {
+      debug(`[DEVICE EVENT] Failed to create event:`, err);
     }
   }
 
