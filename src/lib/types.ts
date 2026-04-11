@@ -185,3 +185,14 @@ export interface DashboardEvent {
   message: string;
   status: "unread" | "read" | "resolved";
 }
+
+export interface CarbonEmissions {
+  period: string;
+  totalKwh: number;
+  totalCarbon: number; // kg CO2
+  prevCarbon: number; // kg CO2
+  growthRate: number;
+  emissionFactor: number;
+  treesNeeded: number;
+  peakWatts: number;
+}
