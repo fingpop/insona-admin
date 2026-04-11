@@ -209,54 +209,11 @@ export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisc
   // 激活场景
   const activateScene = async (scene: Scene) => {
     try {
-      // 全开 (1) 或全关 (2) 模式
-      if (scene.sceneId === 1 || scene.sceneId === 2) {
-        const action = scene.sceneId === 1 ? "on" : "off";
-        const res = await fetch("/api/devices");
-        const data = await res.json();
-        const devices: { meshId: string | null }[] = data.devices ?? [];
-        const meshIds = Array.from(new Set(devices.map((d) => d.meshId).filter(Boolean) as string[]));
-
-        if (meshIds.length === 0) {
-          console.error("未找到网络区域");
-          return;
-        }
-
-        for (const meshid of meshIds) {
-          await fetch("/api/devices/control", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              did: "00",
-              action: "onoff",
-              value: action === "on" ? [1] : [0],
-              meshid,
-              transition: 750,
-            }),
-          });
-        }
-      } else {
-        // 其他场景调用场景激活 API
-        // 需要获取 meshId
-        const res = await fetch("/api/devices");
-        const data = await res.json();
-        const devices: { meshId: string | null }[] = data.devices ?? [];
-        const meshIds = Array.from(new Set(devices.map((d) => d.meshId).filter(Boolean) as string[]));
-
-        if (meshIds.length === 0) {
-          console.error("未找到网络区域");
-          return;
-        }
-
-        // 使用场景绑定的 meshId 或第一个可用的 meshId
-        const targetMeshId = scene.meshId || meshIds[0];
-
-        await fetch("/api/scenes/activate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sceneId: scene.sceneId, meshid: targetMeshId }),
-        });
-      }
+      // 调用场景激活 API（使用场景数据库 ID）
+      await fetch(`/api/scenes/${scene.id}/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (err) {
       console.error("Activate scene error:", err);
     }

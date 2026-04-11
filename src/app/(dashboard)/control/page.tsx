@@ -608,28 +608,12 @@ export default function ControlPanel() {
           )}
           {currentPage === "scenes" && (
             <ScenesPage onActivateScene={async (sceneId, meshid) => {
-              // 全开(1)或全关(2)模式 - 发送 did=00 的控制指令
-              if (sceneId === 1 || sceneId === 2) {
-                const action = sceneId === 1 ? "on" : "off";
-                await fetch("/api/devices/control", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    did: "00",
-                    action: "onoff",
-                    value: action === "on" ? [1] : [0],
-                    meshid,
-                    transition: 750,
-                  }),
-                });
-              } else {
-                // 其他场景调用场景激活 API
-                await fetch("/api/scenes/activate", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ sceneId, meshid }),
-                });
-              }
+              // 调用场景激活 API
+              await fetch("/api/scenes/activate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sceneId, meshid }),
+              });
             }} devices={devices} spaces={spaces} />
           )}
           {currentPage === "automation" && (
@@ -3673,12 +3657,6 @@ function ScenesPage({
   devices: InSonaDevice[];
   spaces: SpaceNode[];
 }) {
-  // 默认快捷场景（内置全开/全关）
-  const defaultScenes = [
-    { id: "all-on", sceneId: 1, name: "全开模式", icon: "fa-lightbulb", color: "blue" as const, isDefault: true },
-    { id: "all-off", sceneId: 2, name: "全关模式", icon: "fa-moon", color: "gray" as const, isDefault: true },
-  ];
-
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [activating, setActivating] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -3713,22 +3691,9 @@ function ScenesPage({
   const handleActivate = async (scene: { id: string; sceneId?: number; name: string }) => {
     setActivating(scene.id);
     try {
-      const meshIds = Array.from(new Set(devices.map((d) => d.meshid).filter(Boolean) as string[]));
-      if (meshIds.length === 0) {
-        alert("未找到网络区域");
-        return;
-      }
-
-      if (scene.sceneId === 1 || scene.sceneId === 2) {
-        // 全开/全关 - 对所有 mesh 发送
-        for (const meshid of meshIds) {
-          await onActivateScene(scene.sceneId!, meshid);
-        }
-      } else {
-        // 从数据库加载的场景
-        const res = await fetch(`/api/scenes/${scene.id}/activate`, { method: "POST" });
-        if (!res.ok) throw new Error("激活失败");
-      }
+      // 从数据库加载的场景
+      const res = await fetch(`/api/scenes/${scene.id}/activate`, { method: "POST" });
+      if (!res.ok) throw new Error("激活失败");
     } catch (err) {
       console.error("Failed to activate scene:", err);
       alert("执行场景失败");
@@ -3871,11 +3836,11 @@ function ScenesPage({
     );
   };
 
-  // Quick scenes from DB (showInQuick)
-  const quickScenes = scenes.filter((s) => s.showInQuick && !["all-on", "all-off"].includes(s.id));
+  // Quick scenes from DB (showInQuick) - 排除假场景
+  const quickScenes = scenes.filter((s) => s.showInQuick && !['下班模式', '会议模式', '全开模式', '全关模式'].includes(s.name));
 
-  // Preset scenes from DB (会客、影院、节能、日出)
-  const presetScenes = scenes.filter((s) => s.isDefault && !["all-on", "all-off"].includes(s.id) && !s.showInQuick);
+  // Preset scenes from DB - 排除假场景和已显示的 quick scenes
+  const presetScenes = scenes.filter((s) => s.isDefault && !['下班模式', '会议模式', '全开模式', '全关模式'].includes(s.name) && !s.showInQuick);
 
   return (
     <div className="fade-in">
@@ -3908,11 +3873,16 @@ function ScenesPage({
           </div>
         ) : (
           <>
-            {/* Default scenes + Quick scenes */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-              {defaultScenes.map((s) => renderSceneCard(s))}
-              {quickScenes.map((s) => renderSceneCard(s))}
-            </div>
+            {/* Quick scenes from database */}
+            {quickScenes.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                {quickScenes.map((s) => renderSceneCard(s))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-400 text-sm mb-4">暂无快捷场景，点击上方按钮创建</p>
+              </div>
+            )}
 
             {/* Preset/DB scenes */}
             {presetScenes.length > 0 && (
