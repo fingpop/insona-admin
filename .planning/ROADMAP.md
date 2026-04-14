@@ -35,7 +35,9 @@
   3. 应用崩溃后能自动重启（systemd Restart=always 或 docker-compose restart policy）
   4. 服务器开机后应用能自动启动
   5. 应用启动时自动执行 `prisma migrate deploy` 确保数据库 schema 最新
-**Plans:** TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 02-01-PLAN.md — Create systemd auto-start service, Docker healthcheck, update deployment docs (CONFIG-01/02/03, PROCESS-01/02/03/04, DB-01/02)
 
 ### Phase 3: Operational Verification
 **Goal:** 网关连接自动建立，日志可查且支持轮转，部署文档完整可用
@@ -54,7 +56,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Docker Image | 1/1 | Complete    | 2026-04-14 |
-| 2. Production Runtime | 0/5 | Not started | - |
+| 2. Production Runtime | 0/1 | Not started | - |
 | 3. Operational Verification | 0/5 | Not started | - |
 
 ## Coverage Map
