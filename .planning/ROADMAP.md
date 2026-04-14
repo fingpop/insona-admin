@@ -8,7 +8,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Docker Image** — Next.js 生产构建的 Docker 镜像，包含 Prisma client 和合理体积
+- [x] **Phase 1: Docker Image** — Next.js 生产构建的 Docker 镜像，包含 Prisma client 和合理体积 (completed 2026-04-14)
 - [ ] **Phase 2: Production Runtime** — 通过 .env 配置、systemd/docker-compose 管理、数据持久化的生产运行环境
 - [ ] **Phase 3: Operational Verification** — 网关自动连接、日志轮转、完整部署文档验证
 
@@ -23,7 +23,7 @@
   2. 镜像运行后能访问 Next.js 应用页面（HTTP 响应正常）
   3. 镜像体积小于 500MB
   4. Prisma client 在容器内可用，`prisma generate` 产物已包含在镜像中
-**Plans:** TBD
+**Plans:** 1/1 plans complete
 
 ### Phase 2: Production Runtime
 **Goal:** 应用在服务器上以生产模式稳定运行，配置通过 .env 管理，数据持久化，进程自动恢复
@@ -53,7 +53,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Docker Image | 0/4 | Not started | - |
+| 1. Docker Image | 1/1 | Complete    | 2026-04-14 |
 | 2. Production Runtime | 0/5 | Not started | - |
 | 3. Operational Verification | 0/5 | Not started | - |
 

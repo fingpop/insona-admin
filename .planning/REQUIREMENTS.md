@@ -7,9 +7,9 @@
 
 ### Docker 构建
 
-- [ ] **DOCKER-01**: Dockerfile 支持 Next.js 生产构建（standalone output）
-- [ ] **DOCKER-02**: 构建产物包含 Prisma client 生成文件
-- [ ] **DOCKER-03**: 镜像体积合理（<500MB）
+- [x] **DOCKER-01**: Dockerfile 支持 Next.js 生产构建（standalone output）
+- [x] **DOCKER-02**: 构建产物包含 Prisma client 生成文件
+- [x] **DOCKER-03**: 镜像体积合理（<500MB）
 
 ### 运行配置
 
@@ -41,7 +41,7 @@
 
 ### 部署文档
 
-- [ ] **DOC-01**: 提供完整的服务器部署指南
+- [x] **DOC-01**: 提供完整的服务器部署指南
 - [ ] **DOC-02**: 提供一键部署脚本
 
 ## v2 Requirements
@@ -72,9 +72,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DOCKER-01 | Phase 1 | Pending |
-| DOCKER-02 | Phase 1 | Pending |
-| DOCKER-03 | Phase 1 | Pending |
+| DOCKER-01 | Phase 1 | Complete |
+| DOCKER-02 | Phase 1 | Complete |
+| DOCKER-03 | Phase 1 | Complete |
 | CONFIG-01 | Phase 2 | Pending |
 | CONFIG-02 | Phase 2 | Pending |
 | CONFIG-03 | Phase 2 | Pending |
@@ -88,7 +88,7 @@
 | GATEWAY-02 | Phase 3 | Pending |
 | LOG-01 | Phase 3 | Pending |
 | LOG-02 | Phase 3 | Pending |
-| DOC-01 | Phase 1 | Pending |
+| DOC-01 | Phase 1 | Complete |
 | DOC-02 | Phase 3 | Pending |
 
 **Coverage:**
