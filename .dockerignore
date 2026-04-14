@@ -1,0 +1,49 @@
+# Build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.db-journal
+
+# Logs
+*.log
+energy_events.log
+dev.log
+daemon.log
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# GSD planning
+.planning/
+.claude/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Docs and scripts (not needed for production)
+docs/
+scripts/
+*.md
+
+# Backup files
+*.tar.gz
+*.zip
+
+# Device data
+insona-devices.json
+
+# Prisma
+prisma/dev.db

@@ -1,0 +1,16 @@
+services:
+  insona-admin:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist SQLite database across container restarts
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=file:/app/data/dev.db
+    restart: unless-stopped
+    # Run Prisma migrations before starting the app
+    command: >
+      sh -c "npx prisma migrate deploy --schema ./prisma/schema.prisma && node server.js"
