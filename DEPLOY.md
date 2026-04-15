@@ -6,6 +6,42 @@
 - 服务器与 inSona 网关在同一网络（TCP 8091 可达）
 - Node.js **不需要**安装在宿主机（容器内自带）
 
+## 快速部署（推荐）
+
+项目提供一键部署脚本 `scripts/deploy.sh`，自动完成从克隆代码到启动验证的完整流程。
+
+### 使用方法
+
+```bash
+sudo bash scripts/deploy.sh
+```
+
+### 脚本自动执行的步骤
+
+1. **检查前置条件** — 验证 docker、docker compose、git 是否已安装
+2. **交互式配置** — 提示输入网关 IP、端口、部署目录、仓库地址
+   - 自动检测服务器网络接口 IP 作为参考
+   - GATEWAY_PORT 默认 8091，DEPLOY_DIR 默认 /opt/insona-admin
+3. **克隆代码** — 如提供仓库地址则自动 clone，否则使用已有目录
+4. **生成 .env** — 根据交互输入自动生成配置文件
+5. **创建目录** — 自动创建 `./data` 和 `./data/logs` 目录
+6. **构建启动** — 执行 `docker compose up -d --build`
+7. **健康检查** — 等待服务就绪（最长 120 秒），支持 docker compose 状态和 HTTP 响应检测
+8. **部署报告** — 输出访问 URL、容器状态和后续步骤提示
+
+### 后续配置
+
+部署成功后，脚本会提示以下可选配置：
+
+- **日志轮转** — 防止日志无限增长（参见 [第 9 节](#9-日志管理)）
+- **开机自启** — 通过 systemd 实现容器自动启动（参见 [第 8 节](#8-开机自启动)）
+
+---
+
+## 手动部署步骤（备选方案）
+
+> 以下为完整手动部署流程。如已使用快速部署脚本，可跳过此部分。
+
 ## 1. 克隆项目
 
 ```bash
@@ -204,6 +240,23 @@ sudo journalctl -u insona-admin -f
 - `[Instrumentation] 服务器启动中...` — Next.js 服务器初始化（instrumentation.ts）
 - `[Instrumentation] 后台服务已启动` — 定时任务调度器启动
 - `[Gateway] Connecting to {ip}:{port}...` — 网关连接尝试
+
+### 日志轮转
+
+生产环境建议配置日志轮转，防止日志文件无限增长。能耗事件日志输出到 `/app/data/logs/energy.log`，项目提供 logrotate 配置文件。
+
+```bash
+# 安装 logrotate 配置
+sudo cp deploy/logrotate.conf /etc/logrotate.d/insona-admin
+
+# 验证配置（dry run）
+sudo logrotate -d /etc/logrotate.d/insona-admin
+```
+
+logrotate 配置说明（参见 `deploy/logrotate.conf`）：
+- **每日轮转**（daily），保留 30 天
+- 自动压缩旧日志（compress），延迟压缩当前文件（delaycompress）
+- 使用 `copytruncate` 模式，Node.js 进程持有文件描述符时安全轮转
 
 ### 日志排查
 
