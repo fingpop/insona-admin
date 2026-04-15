@@ -37,8 +37,9 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
-# Copy Prisma schema for runtime migrations
+# Copy Prisma schema and migrations for runtime migrations
 COPY prisma/schema.prisma ./prisma/
+COPY prisma/migrations ./prisma/migrations/
 
 # Copy standalone output from builder
 COPY --from=builder /app/.next/standalone ./
