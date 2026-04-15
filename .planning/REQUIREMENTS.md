@@ -36,7 +36,7 @@
 
 ### 日志管理
 
-- [ ] **LOG-01**: 应用日志通过 systemd/journald 或 docker logs 查看
+- [x] **LOG-01**: 应用日志通过 systemd/journald 或 docker logs 查看
 - [x] **LOG-02**: 能耗事件日志独立文件，支持日志轮转
 
 ### 部署文档
@@ -86,7 +86,7 @@
 | DB-02 | Phase 2 | Complete |
 | GATEWAY-01 | Phase 3 | Complete |
 | GATEWAY-02 | Phase 3 | Complete |
-| LOG-01 | Phase 3 | Pending |
+| LOG-01 | Phase 3 | Complete |
 | LOG-02 | Phase 3 | Complete |
 | DOC-01 | Phase 1 | Complete |
 | DOC-02 | Phase 3 | Complete |
