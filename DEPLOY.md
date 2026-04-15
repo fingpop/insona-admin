@@ -79,6 +79,8 @@ docker compose logs -f           # 实时日志
 docker compose logs --tail=100   # 最近 100 行
 ```
 
+> 完整日志管理说明参见 [第 9 节 - 日志管理](#9-日志管理)。
+
 ### 重启服务
 ```bash
 docker compose restart
@@ -142,6 +144,76 @@ ports:
 ### 镜像体积过大
 确保使用了多阶段构建（Dockerfile 已配置），standalone 模式输出。
 正常体积应在 300-500MB 之间。
+
+## 8. 开机自启动
+
+应用支持通过 systemd 实现开机自启动，使用项目提供的 `deploy/insona-admin.service` 单元文件。
+
+### 启用自启动
+
+```bash
+# 复制 systemd 服务文件（假设项目已部署到 /opt/insona-admin）
+sudo cp deploy/insona-admin.service /etc/systemd/system/
+
+# 重载 systemd 并启用自启动
+sudo systemctl daemon-reload
+sudo systemctl enable insona-admin
+sudo systemctl start insona-admin
+
+# 验证服务状态
+sudo systemctl status insona-admin
+```
+
+### 服务管理
+
+```bash
+sudo systemctl stop insona-admin      # 停止服务
+sudo systemctl restart insona-admin   # 重启服务
+sudo systemctl disable insona-admin   # 禁用自启动
+```
+
+### 注意事项
+
+- 服务文件中的 `WorkingDirectory` 设为 `/opt/insona-admin`，确保项目部署到此路径，或修改服务文件匹配实际路径
+- `After=docker.service` 确保 Docker 引擎就绪后再启动容器
+
+## 9. 日志管理
+
+### 日志输出路径
+
+应用所有日志通过 `console.log` 输出到 stdout，Docker 自动捕获。通过以下命令查看：
+
+```bash
+# 查看应用日志（Docker）
+docker compose logs -f insona-admin
+
+# 通过 systemd 查看日志（使用自启动服务时）
+sudo journalctl -u insona-admin -f
+```
+
+### 预期启动日志输出
+
+容器启动时应看到以下关键日志：
+
+```
+[Instrumentation] 服务器启动中...
+[Instrumentation] 后台服务已启动
+[Gateway] Connecting to 192.168.1.100:8091...
+```
+
+- `[Instrumentation] 服务器启动中...` — Next.js 服务器初始化（instrumentation.ts）
+- `[Instrumentation] 后台服务已启动` — 定时任务调度器启动
+- `[Gateway] Connecting to {ip}:{port}...` — 网关连接尝试
+
+### 日志排查
+
+```bash
+# 查看最近 100 行
+docker compose logs --tail=100 insona-admin
+
+# 查看 systemd 日志
+sudo journalctl -u insona-admin --since "1 hour ago"
+```
 
 ## 架构说明
 
