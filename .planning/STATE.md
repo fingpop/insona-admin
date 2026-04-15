@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-15T03:59:20.153Z"
+status: Complete
+last_updated: "2026-04-15T04:04:00Z"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # STATE.md — 商照管理后台 服务器部署
@@ -18,7 +18,7 @@ progress:
 
 **Core Value:** 程序能够在 Linux 服务器上以生产模式稳定运行，自动管理网关连接并持久化数据
 
-**Current Focus:** Phase 3 — Operational Verification（网关连接、日志管理验证）
+**Current Focus:** Phase 3 — Operational Verification（网关连接、日志管理、一键部署）— COMPLETE
 
 ## Current Position
 
@@ -26,18 +26,20 @@ progress:
 |------|-------|
 | Milestone | 服务器部署 v1 |
 | Phase | 3 — Operational Verification |
-| Plan | TBD |
-| Status | Not started |
-| Progress | [██████████░] 66% |
+| Plan | 03 — One-click deploy script |
+| Status | Complete |
+| Progress | [██████████] 100% |
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| Phases Complete | 2/3 |
-| Plans Complete | 2/2 |
-| Requirements Met | 13/17 |
+| Phases Complete | 3/3 |
+| Plans Complete | 3/3 |
+| Requirements Met | 17/17 |
 | Phase 03 P01 | 15min | 1 tasks | 4 files |
+| Phase 03-operational-verification P02 | 8min | 5 tasks | 6 files |
+| Phase 03-operational-verification P03 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -54,16 +56,17 @@ progress:
 - [Phase 02-production-runtime]: systemd service uses Type=oneshot RemainAfterExit=yes for docker compose lifecycle management
 - [Phase 03]: Extracted gateway auto-connect into separate autoConnect.ts module for testability with vitest
 - [Phase 03]: Energy logging uses JSON-lines format with copytruncate logrotate (Node.js holds file descriptor)
+- [Phase 03 P03]: One-click deploy script uses dual health check (docker compose ps + curl fallback), idempotent with .env overwrite protection
 
 ### Completed
 
 - [x] Phase 1: Docker Image — Dockerfile, docker-compose.yml, .env.example, DEPLOY.md, standalone output
 - [x] Phase 2: Production Runtime — systemd service, Docker healthcheck, DEPLOY.md updated, 9 requirements verified
+- [x] Phase 3: Operational Verification — gateway auto-connect, energy logging + logrotate, one-click deploy (17/17 requirements)
 
 ### TODO
 
-- [ ] Phase 3 plan creation
-- [ ] Phase 3 execution
+None — all milestone v1.0 plans complete.
 
 ### Blockers
 
@@ -71,8 +74,8 @@ progress:
 
 ## Session Continuity
 
-**Last Session:** 2026-04-15T03:59:20.146Z
-**Next Step:** `/gsd-plan-phase 3`
+**Last Session:** 2026-04-15T04:04:00Z
+**Next Step:** All milestone v1.0 plans complete.
 
 ---
-*State updated: 2026-04-15 after Phase 2 completion*
+*State updated: 2026-04-15 after Phase 3 P03 completion — milestone v1.0 COMPLETE*

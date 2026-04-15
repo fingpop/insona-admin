@@ -42,7 +42,7 @@
 ### 部署文档
 
 - [x] **DOC-01**: 提供完整的服务器部署指南
-- [ ] **DOC-02**: 提供一键部署脚本
+- [x] **DOC-02**: 提供一键部署脚本
 
 ## v2 Requirements
 
@@ -89,7 +89,7 @@
 | LOG-01 | Phase 3 | Pending |
 | LOG-02 | Phase 3 | Complete |
 | DOC-01 | Phase 1 | Complete |
-| DOC-02 | Phase 3 | Pending |
+| DOC-02 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 17 total

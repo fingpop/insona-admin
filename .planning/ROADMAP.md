@@ -10,7 +10,7 @@
 
 - [x] **Phase 1: Docker Image** — Next.js 生产构建的 Docker 镜像，包含 Prisma client 和合理体积 (completed 2026-04-14)
 - [x] **Phase 2: Production Runtime** — 通过 .env 配置、systemd/docker-compose 管理、数据持久化的生产运行环境 (completed 2026-04-15)
-- [ ] **Phase 3: Operational Verification** — 网关自动连接、日志轮转、完整部署文档验证
+- [x] **Phase 3: Operational Verification** — 网关自动连接、日志轮转、完整部署文档验证 (completed 2026-04-15)
 
 ## Phase Details
 
@@ -49,11 +49,11 @@ Plans:
   3. 通过 `docker logs` 或 `journalctl` 能查看应用日志
   4. 能耗事件日志输出到独立文件，且配置了日志轮转（logrotate 或等效机制）
   5. 按照部署文档能从零开始完成服务器部署
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 03-01-PLAN.md — Add gateway auto-connect to instrumentation.ts using GATEWAY_IP/GATEWAY_PORT env vars (GATEWAY-01)
 - [x] 03-02-PLAN.md — Create EnergyLogger utility, integrate into GatewayService, add gateway env vars to Docker, create logrotate config (LOG-02, GATEWAY-02)
-- [ ] 03-03-PLAN.md — Create one-click deploy script and update DEPLOY.md (DOC-02)
+- [x] 03-03-PLAN.md — Create one-click deploy script and update DEPLOY.md (DOC-02)
 
 ## Progress
 
@@ -61,7 +61,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Docker Image | 1/1 | Complete    | 2026-04-14 |
 | 2. Production Runtime | 1/1 | Complete    | 2026-04-15 |
-| 3. Operational Verification | 2/3 | In Progress|  |
+| 3. Operational Verification | 3/3 | Complete   | 2026-04-15 |
 
 ## Coverage Map
 
