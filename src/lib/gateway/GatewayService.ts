@@ -1,8 +1,7 @@
 import net from "net";
-import fs from "fs";
-import path from "path";
 import { InSonaRequest, InSonaResponse } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import { logEnergyEvent } from "./EnergyLogger";
 
 type SSEConsumer = (data: string) => void;
 
@@ -554,36 +553,8 @@ class GatewayService {
       return;
     }
 
-    // 记录 ECC57FB5134F00 设备的能耗事件到日志文件（测试用）
-    if (did === "ECC57FB5134F00") {
-      const timestamp = new Date();
-      const hours = timestamp.getHours().toString().padStart(2, '0');
-      const minutes = timestamp.getMinutes().toString().padStart(2, '0');
-      const seconds = timestamp.getSeconds().toString().padStart(2, '0');
-      const ms = timestamp.getMilliseconds().toString().padStart(3, '0');
-      const timeStr = `${hours}:${minutes}:${seconds}.${ms}`;
-
-      // 解析 energy 数组（序号-百分比成对）
-      let analysis = "";
-      if (energy && Array.isArray(energy)) {
-        const pairs: string[] = [];
-        for (let i = 0; i < energy.length; i += 2) {
-          const seq = energy[i];      // 序号
-          const pct = energy[i + 1];   // 百分比
-          pairs.push(`${seq}(${pct}%)`);
-        }
-        analysis = ` [${pairs.join(', ')}]`;
-      }
-
-      const logEntry = `[${timeStr}] ${JSON.stringify(msg)}${analysis}\n`;
-      const logPath = path.join(process.cwd(), "energy_events.log");
-
-      try {
-        fs.appendFileSync(logPath, logEntry, "utf8");
-      } catch (err) {
-        debug("[ENERGY LOG] Failed to write:", err);
-      }
-    }
+    // Log energy event to file for ALL devices
+    logEnergyEvent(msg);
 
     // 检查设备是否存在
     const device = await prisma.device.findUnique({ where: { id: did as string } });
