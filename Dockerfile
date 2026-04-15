@@ -32,6 +32,11 @@ RUN mkdir -p /app/data
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
+# Copy Prisma CLI binary from builder (for runtime migrations)
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
 # Copy Prisma schema for runtime migrations
 COPY prisma/schema.prisma ./prisma/
 
