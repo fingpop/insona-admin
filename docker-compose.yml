@@ -21,5 +21,6 @@ services:
       retries: 3
       start_period: 40s
     # Run Prisma migrations before starting the app
+    # If migrate deploy fails (e.g. stale failed migration), fall back to db push
     command: >
-      sh -c "./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma && node server.js"
+      sh -c "( ./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma || ./node_modules/.bin/prisma db push --schema ./prisma/schema.prisma ) && node server.js"
