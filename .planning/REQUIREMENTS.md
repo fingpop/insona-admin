@@ -13,21 +13,21 @@
 
 ### 运行配置
 
-- [ ] **CONFIG-01**: 通过 .env 文件配置数据库路径、网关 IP、端口
-- [ ] **CONFIG-02**: 数据库文件路径可配置（默认 /data/dev.db）
-- [ ] **CONFIG-03**: Prisma schema 使用环境变量中的 DATABASE_URL
+- [x] **CONFIG-01**: 通过 .env 文件配置数据库路径、网关 IP、端口
+- [x] **CONFIG-02**: 数据库文件路径可配置（默认 /data/dev.db）
+- [x] **CONFIG-03**: Prisma schema 使用环境变量中的 DATABASE_URL
 
 ### 进程管理
 
-- [ ] **PROCESS-01**: 通过 systemd 或 docker-compose 管理 Next.js 进程
-- [ ] **PROCESS-02**: 进程崩溃自动重启
-- [ ] **PROCESS-03**: 开机自启动
-- [ ] **PROCESS-04**: 日志输出到 stdout/systemd journal
+- [x] **PROCESS-01**: 通过 systemd 或 docker-compose 管理 Next.js 进程
+- [x] **PROCESS-02**: 进程崩溃自动重启
+- [x] **PROCESS-03**: 开机自启动
+- [x] **PROCESS-04**: 日志输出到 stdout/systemd journal
 
 ### 数据库持久化
 
-- [ ] **DB-01**: SQLite 数据库文件在容器/进程重启后不丢失
-- [ ] **DB-02**: Prisma migrate deploy 在启动前自动执行
+- [x] **DB-01**: SQLite 数据库文件在容器/进程重启后不丢失
+- [x] **DB-02**: Prisma migrate deploy 在启动前自动执行
 
 ### 网关连接
 
@@ -75,15 +75,15 @@
 | DOCKER-01 | Phase 1 | Complete |
 | DOCKER-02 | Phase 1 | Complete |
 | DOCKER-03 | Phase 1 | Complete |
-| CONFIG-01 | Phase 2 | Pending |
-| CONFIG-02 | Phase 2 | Pending |
-| CONFIG-03 | Phase 2 | Pending |
-| PROCESS-01 | Phase 2 | Pending |
-| PROCESS-02 | Phase 2 | Pending |
-| PROCESS-03 | Phase 2 | Pending |
-| PROCESS-04 | Phase 2 | Pending |
-| DB-01 | Phase 2 | Pending |
-| DB-02 | Phase 2 | Pending |
+| CONFIG-01 | Phase 2 | Complete |
+| CONFIG-02 | Phase 2 | Complete |
+| CONFIG-03 | Phase 2 | Complete |
+| PROCESS-01 | Phase 2 | Complete |
+| PROCESS-02 | Phase 2 | Complete |
+| PROCESS-03 | Phase 2 | Complete |
+| PROCESS-04 | Phase 2 | Complete |
+| DB-01 | Phase 2 | Complete |
+| DB-02 | Phase 2 | Complete |
 | GATEWAY-01 | Phase 3 | Pending |
 | GATEWAY-02 | Phase 3 | Pending |
 | LOG-01 | Phase 3 | Pending |

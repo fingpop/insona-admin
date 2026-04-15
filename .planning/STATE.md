@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-04-14T13:30:07.334Z"
+status: Phase 2 Plan 01 complete
+last_updated: "2026-04-15T01:26:02.956Z"
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ progress:
 |------|-------|
 | Milestone | 服务器部署 v1 |
 | Phase | 2 — Production Runtime |
-| Plan | TBD |
-| Status | Not started |
-| Progress | [███░░░░░░░] 33% |
+| Plan | 01 - Auto-start, Healthcheck, Docs |
+| Status | Complete |
+| Progress | [██████████] 100% |
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ progress:
 - 多阶段构建：builder 安装+生成 Prisma+构建，runner 只复制 standalone 输出
 - SQLite 通过 volume 持久化（./data:/app/data）
 - 容器启动时自动执行 prisma migrate deploy
+- [Phase 02-production-runtime]: systemd service uses Type=oneshot RemainAfterExit=yes for docker compose lifecycle management
 
 ### Completed
 
@@ -57,8 +58,11 @@ progress:
 
 ### TODO
 
-- [ ] Phase 2 plan creation
-- [ ] Phase 2 execution
+- [x] Phase 2 Plan 01: systemd auto-start, Docker healthcheck, DEPLOY.md update
+  - deploy/insona-admin.service created (PROCESS-03)
+  - docker-compose.yml healthcheck added
+  - DEPLOY.md updated with auto-start + logging sections
+  - All 9 Phase 2 requirements verified (CONFIG-01/02/03, PROCESS-01/02/03/04, DB-01/02)
 
 ### Blockers
 
@@ -66,7 +70,7 @@ progress:
 
 ## Session Continuity
 
-**Last Session:** Phase 1 execution complete, verification and state updates done
+**Last Session:** 2026-04-15T01:26:02.951Z
 **Next Step:** `/gsd-plan-phase 2`
 
 ---
