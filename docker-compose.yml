@@ -11,6 +11,12 @@ services:
     environment:
       - DATABASE_URL=file:/app/data/dev.db
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     # Run Prisma migrations before starting the app
     command: >
       sh -c "npx prisma migrate deploy --schema ./prisma/schema.prisma && node server.js"
