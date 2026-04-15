@@ -31,13 +31,13 @@
 
 ### 网关连接
 
-- [ ] **GATEWAY-01**: 应用启动后自动连接网关（IP 通过 .env 配置）
-- [ ] **GATEWAY-02**: 网关断线自动重连（已有，验证在生产模式正常工作）
+- [x] **GATEWAY-01**: 应用启动后自动连接网关（IP 通过 .env 配置）
+- [x] **GATEWAY-02**: 网关断线自动重连（已有，验证在生产模式正常工作）
 
 ### 日志管理
 
 - [ ] **LOG-01**: 应用日志通过 systemd/journald 或 docker logs 查看
-- [ ] **LOG-02**: 能耗事件日志独立文件，支持日志轮转
+- [x] **LOG-02**: 能耗事件日志独立文件，支持日志轮转
 
 ### 部署文档
 
@@ -84,10 +84,10 @@
 | PROCESS-04 | Phase 2 | Complete |
 | DB-01 | Phase 2 | Complete |
 | DB-02 | Phase 2 | Complete |
-| GATEWAY-01 | Phase 3 | Pending |
-| GATEWAY-02 | Phase 3 | Pending |
+| GATEWAY-01 | Phase 3 | Complete |
+| GATEWAY-02 | Phase 3 | Complete |
 | LOG-01 | Phase 3 | Pending |
-| LOG-02 | Phase 3 | Pending |
+| LOG-02 | Phase 3 | Complete |
 | DOC-01 | Phase 1 | Complete |
 | DOC-02 | Phase 3 | Pending |
 
