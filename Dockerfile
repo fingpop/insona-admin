@@ -22,6 +22,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install OpenSSL and other required libraries for Prisma
+RUN apk add --no-cache openssl zlib-dev
+
 # Create data directory for SQLite persistence
 RUN mkdir -p /app/data
 
