@@ -14,6 +14,10 @@ export async function register() {
     const { startScheduler } = await import('./lib/scheduler/BackgroundScheduler');
     startScheduler();
 
+    // 网关自动连接（非阻塞，失败不影响服务器启动）
+    const { tryConnectGateway } = await import('./lib/gateway/autoConnect');
+    tryConnectGateway();
+
     console.log('[Instrumentation] 后台服务已启动');
   }
 }
