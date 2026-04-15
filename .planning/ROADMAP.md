@@ -49,7 +49,11 @@ Plans:
   3. 通过 `docker logs` 或 `journalctl` 能查看应用日志
   4. 能耗事件日志输出到独立文件，且配置了日志轮转（logrotate 或等效机制）
   5. 按照部署文档能从零开始完成服务器部署
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 03-01-PLAN.md — Add gateway auto-connect to instrumentation.ts using GATEWAY_IP/GATEWAY_PORT env vars (GATEWAY-01)
+- [ ] 03-02-PLAN.md — Create EnergyLogger utility, integrate into GatewayService, add gateway env vars to Docker, create logrotate config (LOG-02, GATEWAY-02)
+- [ ] 03-03-PLAN.md — Create one-click deploy script and update DEPLOY.md (DOC-02)
 
 ## Progress
 
@@ -57,7 +61,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Docker Image | 1/1 | Complete    | 2026-04-14 |
 | 2. Production Runtime | 1/1 | Complete    | 2026-04-15 |
-| 3. Operational Verification | 0/5 | Not started | - |
+| 3. Operational Verification | 0/3 | Not started | - |
 
 ## Coverage Map
 
