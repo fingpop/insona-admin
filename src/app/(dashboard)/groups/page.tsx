@@ -399,15 +399,15 @@ export default function GroupsPage() {
         />
       )}
 
-      {/* 控制弹窗 */}
-      {controllingDevice && (
-        <ControlGroupDrawer
-          device={controllingDevice}
-          onControl={handleControl}
-          onClose={() => setControllingDevice(null)}
-          controlling={controlling}
-        />
-      )}
+      {/* 控制抽屉 */}
+      <ControlGroupDrawer
+        device={controllingDevice}
+        open={!!controllingDevice}
+        onClose={() => setControllingDevice(null)}
+        onControl={handleControl}
+        controlling={controlling}
+        loading={false}
+      />
     </div>
   );
 }
@@ -486,17 +486,23 @@ function EditGroupModal({
 // 控制组设备抽屉
 function ControlGroupDrawer({
   device,
+  open,
   onControl,
   onClose,
   controlling,
+  loading,
 }: {
-  device: GroupDevice;
+  device: GroupDevice | null;
+  open: boolean;
   onControl: (did: string, action: string, value: number[], meshid: string) => Promise<void>;
   onClose: () => void;
   controlling: boolean;
+  loading: boolean;
 }) {
   const [action, setAction] = useState<string>("onoff");
   const [levelValue, setLevelValue] = useState<number>(100);
+
+  if (!device) return null;
 
   // 解析当前值
   const currentValue = useMemo(() => {
@@ -537,133 +543,178 @@ function ControlGroupDrawer({
     await onControl(device.id, actionType, value, device.meshId);
   };
 
+  const funcLabels: Record<number, string> = {
+    2: "开关",
+    3: "调光",
+    4: "双色温",
+    5: "HSL彩灯",
+    9: "面板",
+    10: "传感器",
+  };
+  const funcLabel = funcLabels[device.func] || `功能${device.func}`;
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-white">控制组设备</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
+    <>
+      {/* Overlay */}
+      <div
+        className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity ${
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={onClose}
+      />
 
-        <div className="mb-4 p-3 bg-gray-700/50 rounded">
-          <p className="text-sm text-gray-400">
-            组ID: <span className="text-blue-400 font-mono">{device.id.toUpperCase()}</span>
-          </p>
-          <p className="text-sm text-gray-400">
-            名称: <span className="text-white">{device.name || device.gatewayName}</span>
-          </p>
-          <p className="text-sm text-gray-400">
-            Mesh: <span className="text-gray-300">{device.meshId}</span>
-          </p>
-        </div>
-
-        {/* 控制类型选择 */}
-        <div className="mb-6">
-          <label className="block text-sm text-gray-400 mb-2">控制方式</label>
-          <div className="flex gap-2">
-            {device.func === 2 && (
-              <button
-                onClick={() => setAction("onoff")}
-                className={`flex-1 py-2 px-4 rounded transition-colors ${
-                  action === "onoff"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                <i className="fas fa-power-off mr-2"></i>
-                开关
-              </button>
-            )}
-            {(device.func === 3 || device.func === 4) && (
-              <button
-                onClick={() => setAction("level")}
-                className={`flex-1 py-2 px-4 rounded transition-colors ${
-                  action === "level"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                <i className="fas fa-sun mr-2"></i>
-                亮度
-              </button>
-            )}
+      {/* Drawer panel */}
+      <div
+        className={`fixed right-0 top-0 h-full w-[400px] bg-gradient-to-b from-[#1a1f2e] to-[#151a28] shadow-[-4px_0_20px_rgba(0,0,0,0.5)] z-50 transition-transform duration-300 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="p-6 overflow-y-auto h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-white">组设备控制</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+              <i className="fas fa-times text-xl" />
+            </button>
           </div>
-        </div>
 
-        {/* 开关控制 */}
-        {action === "onoff" && (
-          <div className="mb-6">
-            <div className="flex gap-4">
-              <button
-                onClick={async () => {
-                  setAction("onoff");
-                  if (device.meshId) {
-                    await onControl(device.id, "onoff", [1], device.meshId);
-                  }
-                }}
-                disabled={controlling || !device.meshId}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
-              >
-                <i className="fas fa-power-off mr-2"></i>
-                开
-              </button>
-              <button
-                onClick={async () => {
-                  setAction("onoff");
-                  if (device.meshId) {
-                    await onControl(device.id, "onoff", [0], device.meshId);
-                  }
-                }}
-                disabled={controlling || !device.meshId}
-                className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded text-white transition-colors"
-              >
-                <i className="fas fa-power-off mr-2"></i>
-                关
-              </button>
+          {/* Device info card */}
+          <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 mb-6">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-lg font-bold text-white">
+                {device.name || device.gatewayName || `组设备 ${(device.displayId || device.id).toUpperCase()}`}
+              </h4>
+              <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
+                {device.alive === 1 ? "在线" : "离线"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
+              <span className="text-xs font-mono bg-gray-700/50 px-2 py-0.5 rounded">
+                {(device.displayId || device.id).toUpperCase()}
+              </span>
+              <span>·</span>
+              <span>Mesh {device.meshId || "-"}</span>
+              <span>·</span>
+              <span>{funcLabel}</span>
             </div>
           </div>
-        )}
 
-        {/* 亮度控制 */}
-        {action === "level" && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-400">亮度</span>
-              <span className="text-blue-400 font-mono">{levelValue}%</span>
+          {/* Loading state or control UI */}
+          {loading ? (
+            <div className="text-center py-12 text-gray-400">
+              <i className="fas fa-spinner fa-spin text-2xl"></i>
+              <p className="mt-2">加载设备数据中...</p>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={levelValue}
-              onChange={(e) => setLevelValue(Number(e.target.value))}
-              className="w-full accent-blue-500"
-            />
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>0%</span>
-              <span>100%</span>
+          ) : (
+            <div>
+              {/* 控制类型选择 */}
+              <div className="mb-6">
+                <label className="block text-sm text-gray-400 mb-2">控制方式</label>
+                <div className="flex gap-2">
+                  {device.func === 2 && (
+                    <button
+                      onClick={() => setAction("onoff")}
+                      className={`flex-1 py-2 px-4 rounded transition-colors ${
+                        action === "onoff"
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      }`}
+                    >
+                      <i className="fas fa-power-off mr-2"></i>
+                      开关
+                    </button>
+                  )}
+                  {(device.func === 3 || device.func === 4) && (
+                    <button
+                      onClick={() => setAction("level")}
+                      className={`flex-1 py-2 px-4 rounded transition-colors ${
+                        action === "level"
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      }`}
+                    >
+                      <i className="fas fa-sun mr-2"></i>
+                      亮度
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 开关控制 */}
+              {action === "onoff" && (
+                <div className="mb-6">
+                  <div className="flex gap-4">
+                    <button
+                      onClick={async () => {
+                        setAction("onoff");
+                        if (device.meshId) {
+                          await onControl(device.id, "onoff", [1], device.meshId);
+                        }
+                      }}
+                      disabled={controlling || !device.meshId}
+                      className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
+                    >
+                      <i className="fas fa-power-off mr-2"></i>
+                      开
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setAction("onoff");
+                        if (device.meshId) {
+                          await onControl(device.id, "onoff", [0], device.meshId);
+                        }
+                      }}
+                      disabled={controlling || !device.meshId}
+                      className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded text-white transition-colors"
+                    >
+                      <i className="fas fa-power-off mr-2"></i>
+                      关
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 亮度控制 */}
+              {action === "level" && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-400">亮度</span>
+                    <span className="text-blue-400 font-mono">{levelValue}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={levelValue}
+                    onChange={(e) => setLevelValue(Number(e.target.value))}
+                    className="w-full accent-blue-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 发送控制按钮 */}
+              {action === "level" && (
+                <button
+                  onClick={handleControl}
+                  disabled={controlling || !device.meshId}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
+                >
+                  {controlling ? "控制中..." : "发送控制"}
+                </button>
+              )}
+
+              {/* 提示 */}
+              <p className="mt-4 text-xs text-gray-500 text-center">
+                组设备控制将影响该 Mesh 下所有组内设备
+              </p>
             </div>
-          </div>
-        )}
-
-        {/* 发送控制按钮 */}
-        {action === "level" && (
-          <button
-            onClick={handleControl}
-            disabled={controlling || !device.meshId}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
-          >
-            {controlling ? "控制中..." : "发送控制"}
-          </button>
-        )}
-
-        {/* 提示 */}
-        <p className="mt-4 text-xs text-gray-500 text-center">
-          组设备控制将影响该 Mesh 下所有组内设备
-        </p>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
