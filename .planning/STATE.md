@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: 组设备控制优化
-status: Roadmap defined — awaiting approval
-last_updated: "2026-04-16T00:00:00.000Z"
+milestone_name: milestone
+status: Ready to execute
+last_updated: "2026-04-16T09:28:29.393Z"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 1
   completed_plans: 0
   percent: 0
 ---
