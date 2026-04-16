@@ -418,6 +418,14 @@ export default function ControlPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 当用户切换到不同页面时，刷新数据
+  useEffect(() => {
+    // 设备管理、空间管理、场景管理、能耗分析、自动化页面都需要最新设备数据
+    if (["devices", "rooms", "scenes", "energy", "automation"].includes(currentPage)) {
+      queryDevices();
+    }
+  }, [currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const queryDevices = async () => {
     try {
       const [devicesRes, spacesRes] = await Promise.all([
@@ -1238,7 +1246,7 @@ function DevicesPage({
     if (isGroupDevice(originalDid)) return false;
 
     // 按标签页筛选类型
-    if (activeTab === "lights" && device.type !== 1984) return false;
+    if (activeTab === "lights" && device.type !== 1984 && device.type !== 0) return false;
     if (activeTab === "panels" && device.type !== 1218) return false;
     if (activeTab === "sensors" && device.type !== 1344) return false;
     // 按位置筛选

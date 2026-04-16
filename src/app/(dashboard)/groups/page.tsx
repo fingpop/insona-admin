@@ -176,7 +176,7 @@ export default function GroupsPage() {
             {meshIds.length > 0 && (
               <select
                 className="input-field"
-                style={{ width: "180px" }}
+                style={{ width: "150px" }}
                 value={filterMeshId}
                 onChange={(e) => setFilterMeshId(e.target.value)}
               >
@@ -192,7 +192,7 @@ export default function GroupsPage() {
             {/* 在线状态筛选 */}
             <select
               className="input-field"
-              style={{ width: "120px" }}
+              style={{ width: "150px" }}
               value={filterAlive === undefined ? "" : filterAlive === 1 ? "online" : "offline"}
               onChange={(e) => {
                 if (e.target.value === "") setFilterAlive(undefined);
@@ -227,7 +227,7 @@ export default function GroupsPage() {
               className="btn btn-secondary"
             >
               <i className="fas fa-times"></i>
-              <span>清除</span>
+              <span>清除筛选</span>
             </button>
           </div>
 
@@ -241,19 +241,20 @@ export default function GroupsPage() {
         </div>
 
         {/* 统计信息 */}
-        <div className="flex gap-4 mb-4 text-sm text-gray-400">
-          <span>
-            <i className="fas fa-layer-group mr-1"></i>
-            共 {filteredGroups.length} 个组设备
-          </span>
-          <span>
-            <i className="fas fa-circle text-green-500 mr-1" style={{ fontSize: "8px" }}></i>
-            {filteredGroups.filter((g) => g.alive === 1).length} 个在线
-          </span>
-          <span>
-            <i className="fas fa-circle text-gray-500 mr-1" style={{ fontSize: "8px" }}></i>
-            {filteredGroups.filter((g) => g.alive === 0).length} 个离线
-          </span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="text-sm text-gray-400">
+            共 <span className="text-blue-400 font-medium">{filteredGroups.length}</span> 个组设备
+          </div>
+          <div className="flex gap-3 text-sm text-gray-400">
+            <span>
+              <span className="status-indicator status-online mr-1"></span>
+              {filteredGroups.filter((g) => g.alive === 1).length} 个在线
+            </span>
+            <span>
+              <span className="status-indicator status-offline mr-1"></span>
+              {filteredGroups.filter((g) => g.alive === 0).length} 个离线
+            </span>
+          </div>
         </div>
 
         {/* 组设备表格 */}
@@ -268,124 +269,79 @@ export default function GroupsPage() {
             <p className="mt-2">{error}</p>
           </div>
         ) : filteredGroups.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <i className="fas fa-layer-group text-4xl opacity-50"></i>
-            <p className="mt-4">暂无组设备</p>
-            <p className="text-sm mt-1">组设备在设备同步时自动发现</p>
+          <div className="text-center text-gray-400 py-8">
+            暂无组设备
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700 text-left text-sm text-gray-400">
-                  <th className="pb-3 font-medium">设备ID</th>
-                  <th className="pb-3 font-medium">设备名称</th>
-                  <th className="pb-3 font-medium">位置</th>
-                  <th className="pb-3 font-medium">状态</th>
-                  <th className="pb-3 font-medium">Mesh</th>
-                  <th className="pb-3 font-medium">类型</th>
-                  <th className="pb-3 font-medium text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredGroups.map((device) => (
-                  <tr
-                    key={`${device.meshId}-${device.id}`}
-                    className="border-b border-gray-700/50 hover:bg-white/5 transition-colors"
-                  >
-                    <td className="py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm font-mono">
-                          {(device.displayId || device.id).toUpperCase()}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-4">
-                      <div>
-                        <p className="font-medium text-white">
-                          {device.name || device.gatewayName || `组设备 ${device.displayId || device.id}`}
-                        </p>
-                        {device.name && device.gatewayName && device.name !== device.gatewayName && (
-                          <p className="text-xs text-gray-500">{device.gatewayName}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 text-gray-300">{getRoomName(device)}</td>
-                    <td className="py-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs ${
-                          device.alive === 1
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-gray-500/20 text-gray-400"
-                        }`}
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>设备ID</th>
+                <th>设备名称</th>
+                <th>位置</th>
+                <th>状态</th>
+                <th>Mesh</th>
+                <th>类型</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredGroups.map((device) => (
+                <tr key={`${device.meshId}-${device.id}`}>
+                  <td><code className="text-blue-400">{(device.displayId || device.id).toUpperCase()}</code></td>
+                  <td className="font-medium text-white">
+                    {device.name || device.gatewayName || `组设备 ${device.displayId || device.id}`}
+                  </td>
+                  <td className="text-gray-400">
+                    <i className="fas fa-map-marker-alt mr-1 text-blue-400"></i>
+                    {getRoomName(device)}
+                  </td>
+                  <td>
+                    <span className={`status-indicator ${device.alive === 1 ? "status-online" : "status-offline"}`} />
+                    <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
+                      {device.alive === 1 ? "在线" : "离线"}
+                    </span>
+                  </td>
+                  <td className="text-gray-400 text-sm">{device.meshId || "-"}</td>
+                  <td className="text-gray-400">
+                    {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}
+                    <p className="text-xs text-gray-500">{getDeviceFunc(device.func)}</p>
+                  </td>
+                  <td>
+                    <div className="flex gap-2">
+                      {/* 控制按钮 */}
+                      <button
+                        onClick={() => setControllingDevice(device)}
+                        disabled={!device.meshId || device.alive !== 1}
+                        className="btn btn-secondary text-sm px-3 py-1"
+                        title="控制"
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            device.alive === 1 ? "bg-green-400" : "bg-gray-400"
-                          }`}
-                        ></span>
-                        {device.alive === 1 ? "在线" : "离线"}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <span className="text-gray-400">{device.meshId || "-"}</span>
-                    </td>
-                    <td className="py-4">
-                      <div>
-                        <span className="text-gray-300">
-                          {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}
-                        </span>
-                        <p className="text-xs text-gray-500">{getDeviceFunc(device.func)}</p>
-                      </div>
-                    </td>
-                    <td className="py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* 快捷控制按钮 */}
-                        <button
-                          onClick={() => quickToggle(device)}
-                          disabled={!device.meshId || device.alive !== 1}
-                          className="btn btn-sm btn-secondary"
-                          title="快捷开关"
-                        >
-                          <i
-                            className={`fas ${parseValue(device.value)[0] === 1 ? "fa-power-off" : "fa-toggle-off"}`}
-                          ></i>
-                        </button>
+                        <i className="fas fa-sliders-h"></i>
+                      </button>
 
-                        {/* 控制按钮 */}
-                        <button
-                          onClick={() => setControllingDevice(device)}
-                          disabled={!device.meshId || device.alive !== 1}
-                          className="btn btn-sm btn-primary"
-                          title="控制"
-                        >
-                          <i className="fas fa-sliders-h"></i>
-                        </button>
+                      {/* 编辑按钮 */}
+                      <button
+                        onClick={() => setEditingDevice(device)}
+                        className="btn btn-secondary text-sm px-3 py-1"
+                        title="编辑属性"
+                      >
+                        <i className="fas fa-edit"></i>
+                      </button>
 
-                        {/* 编辑按钮 */}
-                        <button
-                          onClick={() => setEditingDevice(device)}
-                          className="btn btn-sm btn-secondary"
-                          title="编辑"
-                        >
-                          <i className="fas fa-edit"></i>
-                        </button>
-
-                        {/* 删除按钮 */}
-                        <button
-                          onClick={() => handleDelete(device.id)}
-                          className="btn btn-sm btn-danger"
-                          title="删除"
-                        >
-                          <i className="fas fa-trash"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={() => handleDelete(device.id)}
+                        className="btn btn-secondary text-sm px-3 py-1 text-red-400 hover:text-red-300"
+                        title="删除组设备"
+                      >
+                        <i className="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
@@ -433,9 +389,10 @@ function EditGroupModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-        <h3 className="text-lg font-medium text-white mb-4">编辑组设备</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-[480px] bg-[#0d1520] rounded-lg border border-[#1c2630] p-6">
+        <h3 className="text-lg font-medium text-white mb-6">编辑组设备</h3>
 
         <div className="mb-4 p-3 bg-gray-700/50 rounded">
           <p className="text-sm text-gray-400">
@@ -446,30 +403,30 @@ function EditGroupModal({
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm text-gray-400 mb-1">设备名称</label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="input-field w-full"
-              placeholder="输入设备名称"
+              className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
+              placeholder="请输入设备名称"
             />
           </div>
 
-          <div className="mb-6">
-            <label className="block text-sm text-gray-400 mb-1">位置</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
             <input
               type="text"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
-              className="input-field w-full"
-              placeholder="输入位置或留空"
+              className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
+              placeholder="请输入位置或留空"
             />
           </div>
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn btn-secondary">
               取消
             </button>
@@ -499,8 +456,8 @@ function ControlGroupDrawer({
   controlling: boolean;
   loading: boolean;
 }) {
-  const [action, setAction] = useState<string>("onoff");
-  const [levelValue, setLevelValue] = useState<number>(100);
+  const [brightnessValue, setBrightnessValue] = useState<number>(100);
+  const [colorTempValue, setColorTempValue] = useState<number>(50);
 
   if (!device) return null;
 
@@ -513,35 +470,30 @@ function ControlGroupDrawer({
     }
   }, [device.value]);
 
-  // 根据 func 类型设置默认值
+  // 根据 func 类型初始化控制值
   useMemo(() => {
-    if (device.func === 2) {
-      setAction("onoff");
-    } else if (device.func === 3) {
-      setAction("level");
-      setLevelValue(currentValue[0] || 100);
-    } else if (device.func === 4) {
-      setAction("level");
-      setLevelValue(currentValue[0] || 100);
+    if (device.func === 3 || device.func === 4) {
+      setBrightnessValue(currentValue[0] ?? 100);
     }
-  }, [device.func, currentValue]);
+    if (device.func === 4) {
+      setColorTempValue(currentValue[1] ?? 50);
+    }
+  }, [device.func, currentValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleControl = async () => {
+  // 即时控制：亮度松开即发送
+  const handleBrightnessRelease = async () => {
     if (!device.meshId) return;
-
-    let actionType: string;
-    let value: number[];
-
-    if (action === "onoff") {
-      actionType = "onoff";
-      value = [currentValue[0] === 1 ? 0 : 1];
-    } else {
-      actionType = "level";
-      value = [levelValue];
-    }
-
-    await onControl(device.id, actionType, value, device.meshId);
+    await onControl(device.id, "level", [brightnessValue, ...(device.func === 4 ? [colorTempValue] : [])], device.meshId);
   };
+
+  // 即时控制：色温松开即发送
+  const handleColorTempRelease = async () => {
+    if (!device.meshId) return;
+    await onControl(device.id, "level", [brightnessValue, colorTempValue], device.meshId);
+  };
+
+  const isDimmable = device.func === 3 || device.func === 4;
+  const hasColorTemp = device.func === 4;
 
   const funcLabels: Record<number, string> = {
     2: "开关",
@@ -607,110 +559,95 @@ function ControlGroupDrawer({
             </div>
           ) : (
             <div>
-              {/* 控制类型选择 */}
+              {/* 开关控制 — func=2/3/4 均显示 */}
               <div className="mb-6">
-                <label className="block text-sm text-gray-400 mb-2">控制方式</label>
-                <div className="flex gap-2">
-                  {device.func === 2 && (
-                    <button
-                      onClick={() => setAction("onoff")}
-                      className={`flex-1 py-2 px-4 rounded transition-colors ${
-                        action === "onoff"
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      }`}
-                    >
-                      <i className="fas fa-power-off mr-2"></i>
-                      开关
-                    </button>
-                  )}
-                  {(device.func === 3 || device.func === 4) && (
-                    <button
-                      onClick={() => setAction("level")}
-                      className={`flex-1 py-2 px-4 rounded transition-colors ${
-                        action === "level"
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      }`}
-                    >
-                      <i className="fas fa-sun mr-2"></i>
-                      亮度
-                    </button>
-                  )}
+                <label className="block text-sm text-gray-400 mb-3">
+                  <i className="fas fa-power-off mr-1"></i>开关
+                </label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      if (device.meshId) {
+                        await onControl(device.id, "onoff", [1], device.meshId);
+                      }
+                    }}
+                    disabled={controlling || !device.meshId}
+                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white font-medium transition-colors"
+                  >
+                    <i className="fas fa-power-off mr-2"></i>开
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (device.meshId) {
+                        await onControl(device.id, "onoff", [0], device.meshId);
+                      }
+                    }}
+                    disabled={controlling || !device.meshId}
+                    className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded text-white font-medium transition-colors"
+                  >
+                    <i className="fas fa-power-off mr-2"></i>关
+                  </button>
                 </div>
               </div>
 
-              {/* 开关控制 */}
-              {action === "onoff" && (
+              {/* 亮度控制 — func=3/4 显示，松开即发送 */}
+              {isDimmable && (
                 <div className="mb-6">
-                  <div className="flex gap-4">
-                    <button
-                      onClick={async () => {
-                        setAction("onoff");
-                        if (device.meshId) {
-                          await onControl(device.id, "onoff", [1], device.meshId);
-                        }
-                      }}
-                      disabled={controlling || !device.meshId}
-                      className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
-                    >
-                      <i className="fas fa-power-off mr-2"></i>
-                      开
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setAction("onoff");
-                        if (device.meshId) {
-                          await onControl(device.id, "onoff", [0], device.meshId);
-                        }
-                      }}
-                      disabled={controlling || !device.meshId}
-                      className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded text-white transition-colors"
-                    >
-                      <i className="fas fa-power-off mr-2"></i>
-                      关
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* 亮度控制 */}
-              {action === "level" && (
-                <div className="mb-6">
+                  <label className="block text-sm text-gray-400 mb-3">
+                    <i className="fas fa-sun mr-1"></i>亮度
+                  </label>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-400">亮度</span>
-                    <span className="text-blue-400 font-mono">{levelValue}%</span>
+                    <span className="text-xs text-gray-500">0%</span>
+                    <span className="text-blue-400 font-mono text-lg">{brightnessValue}%</span>
+                    <span className="text-xs text-gray-500">100%</span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="100"
-                    value={levelValue}
-                    onChange={(e) => setLevelValue(Number(e.target.value))}
-                    className="w-full accent-blue-500"
+                    value={brightnessValue}
+                    onChange={(e) => setBrightnessValue(Number(e.target.value))}
+                    onMouseUp={handleBrightnessRelease}
+                    onTouchEnd={handleBrightnessRelease}
+                    className="w-full accent-blue-500 cursor-pointer"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0%</span>
-                    <span>100%</span>
-                  </div>
                 </div>
               )}
 
-              {/* 发送控制按钮 */}
-              {action === "level" && (
-                <button
-                  onClick={handleControl}
-                  disabled={controlling || !device.meshId}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white transition-colors"
-                >
-                  {controlling ? "控制中..." : "发送控制"}
-                </button>
+              {/* 色温控制 — func=4 显示，松开即发送 */}
+              {hasColorTemp && (
+                <div className="mb-6">
+                  <label className="block text-sm text-gray-400 mb-3">
+                    <i className="fas fa-thermometer-half mr-1"></i>色温
+                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500">冷光</span>
+                    <span className="text-amber-400 font-mono text-lg">{colorTempValue}%</span>
+                    <span className="text-xs text-gray-500">暖光</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={colorTempValue}
+                    onChange={(e) => setColorTempValue(Number(e.target.value))}
+                    onMouseUp={handleColorTempRelease}
+                    onTouchEnd={handleColorTempRelease}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                </div>
               )}
 
               {/* 提示 */}
-              <p className="mt-4 text-xs text-gray-500 text-center">
-                组设备控制将影响该 Mesh 下所有组内设备
-              </p>
+              <div className="mt-6 p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
+                <p className="text-xs text-gray-500 text-center">
+                  <i className="fas fa-info-circle mr-1"></i>
+                  拖动滑块松开后即时发送控制命令
+                </p>
+                <p className="text-xs text-gray-500 text-center mt-1">
+                  组设备控制将影响该 Mesh 下所有组内设备
+                </p>
+              </div>
             </div>
           )}
         </div>
