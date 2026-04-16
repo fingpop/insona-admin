@@ -1,89 +1,84 @@
-# Roadmap: 商照管理后台 — 服务器部署
+# Roadmap: 商照管理后台 — v1.1 组设备控制优化
 
-**Core Value:** 程序能够在 Linux 服务器上以生产模式稳定运行，自动管理网关连接并持久化数据
+**Core Value:** 优化组设备TAB的控制体验和视觉一致性，使其与设备管理TAB保持一致。
 
 **Granularity:** standard
-**Phases:** 3
-**Coverage:** 17/17 requirements mapped
+**Phases:** 3 (continuing from v1.0 Phase 3)
+**Coverage:** 15/15 v1.1 requirements mapped
 
 ## Phases
 
-- [x] **Phase 1: Docker Image** — Next.js 生产构建的 Docker 镜像，包含 Prisma client 和合理体积 (completed 2026-04-14)
-- [x] **Phase 2: Production Runtime** — 通过 .env 配置、systemd/docker-compose 管理、数据持久化的生产运行环境 (completed 2026-04-15)
-- [x] **Phase 3: Operational Verification** — 网关自动连接、日志轮转、完整部署文档验证 (completed 2026-04-15)
+- [ ] **Phase 4: 控制面板基础架构** — 抽屉式面板组件、设备信息展示、加载状态 (PANEL-01, PANEL-02, PANEL-07)
+- [ ] **Phase 5: 控制面板控制组件** — 开关、亮度、色温即时控制，动态组件显示 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
+- [ ] **Phase 6: 视觉一致性优化与数据同步** — 表格/按钮/弹窗样式统一，控制后自动刷新 (VISUAL-01 through VISUAL-06, SYNC-01, SYNC-02)
 
 ## Phase Details
 
-### Phase 1: Docker Image
-**Goal:** 产出可运行的 Docker 镜像，包含 Next.js 生产构建和完整的 Prisma client
-**Depends on:** Nothing (first phase)
-**Requirements:** DOCKER-01, DOCKER-02, DOCKER-03, DOC-01
+### Phase 4: 控制面板基础架构
+**Goal:** 组设备控制弹窗升级为抽屉式设计，完整展示设备信息和加载状态
+**Depends on:** v1.0 Phase 3 (Operational Verification)
+**Requirements:** PANEL-01, PANEL-02, PANEL-07
 **Success Criteria** (what must be TRUE):
-  1. 执行 `docker build` 命令能成功生成 Docker 镜像
-  2. 镜像运行后能访问 Next.js 应用页面（HTTP 响应正常）
-  3. 镜像体积小于 500MB
-  4. Prisma client 在容器内可用，`prisma generate` 产物已包含在镜像中
-**Plans:** 1/1 plans complete
+  1. 点击组设备列表中的"控制"按钮后，右侧滑入抽屉式面板（非居中弹窗），与设备管理TAB的 DeviceDrawer 样式一致
+  2. 抽屉面板顶部清晰展示设备基本信息：设备ID、名称、所属Mesh、在线/离线状态、功能类型
+  3. 设备数据加载时显示 loading 指示器，加载完成后自动显示控制面板内容
+**Plans:** TBD
+**UI hint**: yes
 
-### Phase 2: Production Runtime
-**Goal:** 应用在服务器上以生产模式稳定运行，配置通过 .env 管理，数据持久化，进程自动恢复
-**Depends on:** Phase 1
-**Requirements:** CONFIG-01, CONFIG-02, CONFIG-03, PROCESS-01, PROCESS-02, PROCESS-03, PROCESS-04, DB-01, DB-02
+### Phase 5: 控制面板控制组件
+**Goal:** 用户可通过抽屉面板即时控制组设备（开关、亮度、色温），无需二次确认
+**Depends on:** Phase 4
+**Requirements:** PANEL-03, PANEL-04, PANEL-05, PANEL-06
 **Success Criteria** (what must be TRUE):
-  1. 通过修改 .env 文件中的 DATABASE_URL、GATEWAY_IP、GATEWAY_PORT 能改变应用行为
-  2. SQLite 数据库文件存储在指定路径（如 /data/dev.db），容器/进程重启后数据不丢失
-  3. 应用崩溃后能自动重启（systemd Restart=always 或 docker-compose restart policy）
-  4. 服务器开机后应用能自动启动
-  5. 应用启动时自动执行 `prisma migrate deploy` 确保数据库 schema 最新
-**Plans:** 1/1 plans complete
-Plans:
-- [x] 02-01-PLAN.md — Create systemd auto-start service, Docker healthcheck, update deployment docs (CONFIG-01/02/03, PROCESS-01/02/03/04, DB-01/02)
+  1. 点击开/关按钮后控制命令立即发送，无"确认发送"弹窗，设备状态即时更新
+  2. 拖动亮度滑块时实时显示当前百分比（0-100%），松开后即时发送控制命令
+  3. 双色温设备显示第二滑块（色温值），调节后即时发送控制命令，与设备管理TAB行为一致
+  4. 控制面板仅展示与设备 func 类型匹配的控制组件（func=2 仅开关，func=3 开关+亮度，func=4 开关+亮度+色温）
+**Plans:** TBD
+**UI hint**: yes
 
-### Phase 3: Operational Verification
-**Goal:** 网关连接自动建立，日志可查且支持轮转，部署文档完整可用
-**Depends on:** Phase 2
-**Requirements:** GATEWAY-01, GATEWAY-02, LOG-01, LOG-02, DOC-02
+### Phase 6: 视觉一致性优化与数据同步
+**Goal:** 组设备TAB的视觉风格与设备管理TAB完全统一，控制操作后数据自动同步
+**Depends on:** Phase 5
+**Requirements:** VISUAL-01, VISUAL-02, VISUAL-03, VISUAL-04, VISUAL-05, VISUAL-06, SYNC-01, SYNC-02
 **Success Criteria** (what must be TRUE):
-  1. 应用启动后自动连接 .env 中配置的网关 IP:端口，无需手动触发
-  2. 网关断线后应用能自动重连（验证已有重连逻辑在生产模式正常工作）
-  3. 通过 `docker logs` 或 `journalctl` 能查看应用日志
-  4. 能耗事件日志输出到独立文件，且配置了日志轮转（logrotate 或等效机制）
-  5. 按照部署文档能从零开始完成服务器部署
-**Plans:** 3/3 plans complete
-Plans:
-- [x] 03-01-PLAN.md — Add gateway auto-connect to instrumentation.ts using GATEWAY_IP/GATEWAY_PORT env vars (GATEWAY-01)
-- [x] 03-02-PLAN.md — Create EnergyLogger utility, integrate into GatewayService, add gateway env vars to Docker, create logrotate config (LOG-02, GATEWAY-02)
-- [x] 03-03-PLAN.md — Create one-click deploy script and update DEPLOY.md (DOC-02)
+  1. 组设备列表表格的表头样式、行高、悬停效果、边框颜色与设备管理TAB的设备列表完全一致
+  2. 操作按钮（控制、编辑等）的尺寸、图标、颜色方案与设备管理TAB统一
+  3. 在线/离线状态标签（badge）的样式与设备管理TAB一致
+  4. 编辑弹窗的背景色、边框、圆角、输入框样式与设备管理TAB统一
+  5. 工具栏筛选组件（select、search input、清除按钮）样式与设备管理TAB统一
+  6. 空状态和无数据提示的样式与设备管理TAB一致
+  7. 执行控制操作后组设备列表自动刷新，无需手动点击"同步"按钮
+  8. parseValue 函数在设备管理TAB和组设备TAB中行为一致（复用同一实现）
+**Plans:** TBD
+**UI hint**: yes
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Docker Image | 1/1 | Complete    | 2026-04-14 |
-| 2. Production Runtime | 1/1 | Complete    | 2026-04-15 |
-| 3. Operational Verification | 3/3 | Complete    | 2026-04-15 |
+| 4. 控制面板基础架构 | 0/0 | Not started | - |
+| 5. 控制面板控制组件 | 0/0 | Not started | - |
+| 6. 视觉一致性优化与数据同步 | 0/0 | Not started | - |
 
 ## Coverage Map
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DOCKER-01 | Phase 1 | Pending |
-| DOCKER-02 | Phase 1 | Pending |
-| DOCKER-03 | Phase 1 | Pending |
-| DOC-01 | Phase 1 | Pending |
-| CONFIG-01 | Phase 2 | Pending |
-| CONFIG-02 | Phase 2 | Pending |
-| CONFIG-03 | Phase 2 | Pending |
-| PROCESS-01 | Phase 2 | Pending |
-| PROCESS-02 | Phase 2 | Pending |
-| PROCESS-03 | Phase 2 | Pending |
-| PROCESS-04 | Phase 2 | Pending |
-| DB-01 | Phase 2 | Pending |
-| DB-02 | Phase 2 | Pending |
-| GATEWAY-01 | Phase 3 | Pending |
-| GATEWAY-02 | Phase 3 | Pending |
-| LOG-01 | Phase 3 | Pending |
-| LOG-02 | Phase 3 | Pending |
-| DOC-02 | Phase 3 | Pending |
+| PANEL-01 | Phase 4 | Pending |
+| PANEL-02 | Phase 4 | Pending |
+| PANEL-03 | Phase 5 | Pending |
+| PANEL-04 | Phase 5 | Pending |
+| PANEL-05 | Phase 5 | Pending |
+| PANEL-06 | Phase 5 | Pending |
+| PANEL-07 | Phase 4 | Pending |
+| VISUAL-01 | Phase 6 | Pending |
+| VISUAL-02 | Phase 6 | Pending |
+| VISUAL-03 | Phase 6 | Pending |
+| VISUAL-04 | Phase 6 | Pending |
+| VISUAL-05 | Phase 6 | Pending |
+| VISUAL-06 | Phase 6 | Pending |
+| SYNC-01 | Phase 6 | Pending |
+| SYNC-02 | Phase 6 | Pending |
 
-**Coverage:** 17/17 v1 requirements mapped. No orphans.
+**Coverage:** 15/15 v1.1 requirements mapped. No orphans.

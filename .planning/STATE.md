@@ -1,45 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Milestone complete
-last_updated: "2026-04-15T04:09:02.595Z"
+milestone: v1.1
+milestone_name: 组设备控制优化
+status: Roadmap defined — awaiting approval
+last_updated: "2026-04-16T00:00:00.000Z"
 progress:
   total_phases: 3
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
-# STATE.md — 商照管理后台 服务器部署
+# STATE.md — 商照管理后台 组设备控制优化
 
 ## Project Reference
 
 **Core Value:** 程序能够在 Linux 服务器上以生产模式稳定运行，自动管理网关连接并持久化数据
 
-**Current Focus:** Phase 3 — Operational Verification（网关连接、日志管理、一键部署）— COMPLETE
+**Current Focus:** v1.1 组设备控制优化 — Roadmap defined, awaiting approval
 
 ## Current Position
 
 | Item | Value |
 |------|-------|
-| Milestone | 服务器部署 v1 |
-| Phase | 3 — Operational Verification |
-| Plan | 03 — One-click deploy script |
-| Status | Complete |
-| Progress | [██████████] 100% |
-
-## Performance Metrics
-
-| Metric | Value |
-|--------|-------|
-| Phases Complete | 3/3 |
-| Plans Complete | 3/3 |
-| Requirements Met | 17/17 |
-| Phase 03 P01 | 15min | 1 tasks | 4 files |
-| Phase 03-operational-verification P02 | 8min | 5 tasks | 6 files |
-| Phase 03-operational-verification P03 | 4min | 2 tasks | 2 files |
+| Milestone | 组设备控制优化 v1.1 |
+| Phase | Roadmap defined (3 phases) |
+| Plan | — |
+| Status | Awaiting roadmap approval |
+| Progress | Phase 4: Not started |
 
 ## Accumulated Context
 
@@ -53,20 +42,28 @@ progress:
 - 多阶段构建：builder 安装+生成 Prisma+构建，runner 只复制 standalone 输出
 - SQLite 通过 volume 持久化（./data:/app/data）
 - 容器启动时自动执行 prisma migrate deploy
-- [Phase 02-production-runtime]: systemd service uses Type=oneshot RemainAfterExit=yes for docker compose lifecycle management
-- [Phase 03]: Extracted gateway auto-connect into separate autoConnect.ts module for testability with vitest
-- [Phase 03]: Energy logging uses JSON-lines format with copytruncate logrotate (Node.js holds file descriptor)
-- [Phase 03 P03]: One-click deploy script uses dual health check (docker compose ps + curl fallback), idempotent with .env overwrite protection
+- 组设备控制采用抽屉式面板（与设备管理TAB保持一致）
+- 组设备控制即时响应（消除二次确认）
+- v1.1 分为 3 个阶段：基础架构 -> 控制组件 -> 视觉统一+数据同步
 
-### Completed
+### Completed (v1.0)
 
-- [x] Phase 1: Docker Image — Dockerfile, docker-compose.yml, .env.example, DEPLOY.md, standalone output
-- [x] Phase 2: Production Runtime — systemd service, Docker healthcheck, DEPLOY.md updated, 9 requirements verified
-- [x] Phase 3: Operational Verification — gateway auto-connect, energy logging + logrotate, one-click deploy (17/17 requirements)
+- [x] Phase 1: Docker Image
+- [x] Phase 2: Production Runtime
+- [x] Phase 3: Operational Verification
+
+### v1.1 Phases (Defined)
+
+- [ ] Phase 4: 控制面板基础架构 (PANEL-01, PANEL-02, PANEL-07)
+- [ ] Phase 5: 控制面板控制组件 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
+- [ ] Phase 6: 视觉一致性优化与数据同步 (VISUAL-01..06, SYNC-01, SYNC-02)
 
 ### TODO
 
-None — all milestone v1.0 plans complete.
+- [x] Define v1.1 requirements
+- [x] Create v1.1 roadmap
+- [ ] Approve roadmap
+- [ ] Plan Phase 4
 
 ### Blockers
 
@@ -74,8 +71,8 @@ None — all milestone v1.0 plans complete.
 
 ## Session Continuity
 
-**Last Session:** 2026-04-15T04:04:00Z
-**Next Step:** All milestone v1.0 plans complete.
+**Last Session:** 2026-04-16
+**Next Step:** Roadmap review and approval, then `/gsd-plan-phase 4`
 
 ---
-*State updated: 2026-04-15 after Phase 3 P03 completion — milestone v1.0 COMPLETE*
+*State updated: 2026-04-16 — v1.1 roadmap defined*
