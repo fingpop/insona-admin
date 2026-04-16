@@ -38,7 +38,11 @@ Plans:
   2. 拖动亮度滑块时实时显示当前百分比（0-100%），松开后即时发送控制命令
   3. 双色温设备显示第二滑块（色温值），调节后即时发送控制命令，与设备管理TAB行为一致
   4. 控制面板仅展示与设备 func 类型匹配的控制组件（func=2 仅开关，func=3 开关+亮度，func=4 开关+亮度+色温）
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — 开关即时控制 + 亮度即时发送 + 色温滑块 + 动态组件显示 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
+
 **UI hint**: yes
 
 ### Phase 6: 视觉一致性优化与数据同步
@@ -62,7 +66,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 4. 控制面板基础架构 | 0/1 | Planned | - |
-| 5. 控制面板控制组件 | 0/0 | Not started | - |
+| 5. 控制面板控制组件 | 0/1 | Planned | - |
 | 6. 视觉一致性优化与数据同步 | 0/0 | Not started | - |
 
 ## Coverage Map
@@ -88,4 +92,4 @@ Plans:
 **Coverage:** 15/15 v1.1 requirements mapped. No orphans.
 
 ---
-*Requirements defined: 2026-04-14. v1.1 added: 2026-04-16. Roadmap created: 2026-04-16. Phase 4 planned: 2026-04-16*
+*Requirements defined: 2026-04-14. v1.1 added: 2026-04-16. Roadmap created: 2026-04-16. Phase 4 planned: 2026-04-16. Phase 5 planned: 2026-04-16*
