@@ -22,7 +22,11 @@
   1. 点击组设备列表中的"控制"按钮后，右侧滑入抽屉式面板（非居中弹窗），与设备管理TAB的 DeviceDrawer 样式一致
   2. 抽屉面板顶部清晰展示设备基本信息：设备ID、名称、所属Mesh、在线/离线状态、功能类型
   3. 设备数据加载时显示 loading 指示器，加载完成后自动显示控制面板内容
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 04-01-PLAN.md — 抽屉式面板 + 设备信息卡片 + loading 状态 (PANEL-01, PANEL-02, PANEL-07)
+
 **UI hint**: yes
 
 ### Phase 5: 控制面板控制组件
@@ -57,7 +61,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 4. 控制面板基础架构 | 0/0 | Not started | - |
+| 4. 控制面板基础架构 | 0/1 | Planned | - |
 | 5. 控制面板控制组件 | 0/0 | Not started | - |
 | 6. 视觉一致性优化与数据同步 | 0/0 | Not started | - |
 
@@ -82,3 +86,6 @@
 | SYNC-02 | Phase 6 | Pending |
 
 **Coverage:** 15/15 v1.1 requirements mapped. No orphans.
+
+---
+*Requirements defined: 2026-04-14. v1.1 added: 2026-04-16. Roadmap created: 2026-04-16. Phase 4 planned: 2026-04-16*
