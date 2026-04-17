@@ -4,6 +4,9 @@ import { useState, useMemo, useCallback } from "react";
 import { useDeviceGroups, GroupDevice } from "@/hooks/useDeviceGroups";
 import { DEVICE_TYPE_LABELS } from "@/lib/types";
 
+// 提取原始 DID（从 meshId:did 格式中取 did 部分）
+const getRawDid = (id: string): string => id.includes(":") ? id.split(":")[1] : id;
+
 export default function GroupsPage() {
   const [filterMeshId, setFilterMeshId] = useState<string>("");
   const [filterAlive, setFilterAlive] = useState<number | undefined>(undefined);
@@ -80,8 +83,6 @@ export default function GroupsPage() {
     setControlling(true);
     try {
       await controlGroup(did, action, value, meshid);
-      setControllingDevice(null);
-      refetch();
     } catch (err) {
       alert(err instanceof Error ? err.message : "控制失败");
     } finally {
@@ -456,13 +457,9 @@ function ControlGroupDrawer({
   controlling: boolean;
   loading: boolean;
 }) {
-  const [brightnessValue, setBrightnessValue] = useState<number>(100);
-  const [colorTempValue, setColorTempValue] = useState<number>(50);
-
   if (!device) return null;
 
-  // 解析当前值
-  const currentValue = useMemo(() => {
+  const valueArr: number[] = useMemo(() => {
     try {
       return JSON.parse(device.value || "[]");
     } catch {
@@ -470,26 +467,28 @@ function ControlGroupDrawer({
     }
   }, [device.value]);
 
-  // 根据 func 类型初始化控制值
-  useMemo(() => {
-    if (device.func === 3 || device.func === 4) {
-      setBrightnessValue(currentValue[0] ?? 100);
-    }
-    if (device.func === 4) {
-      setColorTempValue(currentValue[1] ?? 50);
-    }
-  }, [device.func, currentValue]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initialOn = valueArr[0] === 1;
+  const brightnessPct = device.func === 3 ? (valueArr[0] ?? 0) : (device.func === 4 ? (valueArr[0] ?? 0) : 100);
+  const colorTempPct = device.func === 4 ? (valueArr[1] ?? 50) : 50;
+
+  const [localOn, setLocalOn] = useState(initialOn);
+  const [brightnessValue, setBrightnessValue] = useState(brightnessPct);
+  const [colorTempValue, setColorTempValue] = useState(colorTempPct);
+
+  const rawDid = getRawDid(device.id);
 
   // 即时控制：亮度松开即发送
   const handleBrightnessRelease = async () => {
     if (!device.meshId) return;
-    await onControl(device.id, "level", [brightnessValue, ...(device.func === 4 ? [colorTempValue] : [])], device.meshId);
+    const action = device.func === 4 ? "ctl" : "dim";
+    const value = device.func === 4 ? [brightnessValue, colorTempValue] : [brightnessValue];
+    await onControl(rawDid, action, value, device.meshId);
   };
 
   // 即时控制：色温松开即发送
   const handleColorTempRelease = async () => {
     if (!device.meshId) return;
-    await onControl(device.id, "level", [brightnessValue, colorTempValue], device.meshId);
+    await onControl(rawDid, "ctl", [brightnessValue, colorTempValue], device.meshId);
   };
 
   const isDimmable = device.func === 3 || device.func === 4;
@@ -534,7 +533,7 @@ function ControlGroupDrawer({
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 mb-6">
             <div className="flex items-center justify-between mb-1">
               <h4 className="text-lg font-bold text-white">
-                {device.name || device.gatewayName || `组设备 ${(device.displayId || device.id).toUpperCase()}`}
+                {device.name || device.gatewayName || `组设备 ${(device.displayId || rawDid).toUpperCase()}`}
               </h4>
               <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
                 {device.alive === 1 ? "在线" : "离线"}
@@ -542,7 +541,7 @@ function ControlGroupDrawer({
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
               <span className="text-xs font-mono bg-gray-700/50 px-2 py-0.5 rounded">
-                {(device.displayId || device.id).toUpperCase()}
+                {(device.displayId || rawDid).toUpperCase()}
               </span>
               <span>·</span>
               <span>Mesh {device.meshId || "-"}</span>
@@ -567,23 +566,33 @@ function ControlGroupDrawer({
                 <div className="flex gap-3">
                   <button
                     onClick={async () => {
+                      setLocalOn(true);
                       if (device.meshId) {
-                        await onControl(device.id, "onoff", [1], device.meshId);
+                        await onControl(rawDid, "onoff", [1], device.meshId);
                       }
                     }}
                     disabled={controlling || !device.meshId}
-                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-white font-medium transition-colors"
+                    className={`flex-1 py-3 rounded text-white font-medium transition-colors ${
+                      localOn
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-gray-600 hover:bg-gray-700"
+                    } disabled:bg-gray-600 disabled:cursor-not-allowed`}
                   >
                     <i className="fas fa-power-off mr-2"></i>开
                   </button>
                   <button
                     onClick={async () => {
+                      setLocalOn(false);
                       if (device.meshId) {
-                        await onControl(device.id, "onoff", [0], device.meshId);
+                        await onControl(rawDid, "onoff", [0], device.meshId);
                       }
                     }}
                     disabled={controlling || !device.meshId}
-                    className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded text-white font-medium transition-colors"
+                    className={`flex-1 py-3 rounded text-white font-medium transition-colors ${
+                      !localOn
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-gray-600 hover:bg-gray-700"
+                    } disabled:bg-gray-600 disabled:cursor-not-allowed`}
                   >
                     <i className="fas fa-power-off mr-2"></i>关
                   </button>
