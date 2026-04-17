@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ClientOnly from "@/components/ClientOnly";
 
 export const metadata: Metadata = {
   title: "inSona 商照管理后台",
@@ -16,7 +17,9 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
       </head>
-      <body suppressHydrationWarning>{children}</body>
+      <body>
+        <ClientOnly>{children}</ClientOnly>
+      </body>
     </html>
   );
 }
