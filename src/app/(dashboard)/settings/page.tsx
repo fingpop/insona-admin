@@ -11,12 +11,29 @@ interface DiagnosticResult {
   error?: string;
 }
 
+interface GatewayInfo {
+  id: string;
+  name: string;
+  ip: string;
+  port: number;
+  status: string;
+  liveStatus?: string;
+  lastSeen: string | null;
+  createdAt: string;
+}
+
 export default function SettingsPage() {
   const { status } = useGatewayEvents();
-  const [gatewayIp, setGatewayIp] = useState("");
-  const [gatewayPort, setGatewayPort] = useState("8091");
-  const [connecting, setConnecting] = useState(false);
-  const [msg, setMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [gateways, setGateways] = useState<GatewayInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Add gateway form state
+  const [newName, setNewName] = useState("");
+  const [newIp, setNewIp] = useState("");
+  const [newPort, setNewPort] = useState("8091");
+  const [adding, setAdding] = useState(false);
+
+  // Device power settings
   const [devices, setDevices] = useState<{
     id: string;
     name: string;
@@ -25,95 +42,53 @@ export default function SettingsPage() {
   }[]>([]);
   const [powerDrafts, setPowerDrafts] = useState<Record<string, string>>({});
   const [savingPower, setSavingPower] = useState(false);
-  const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
-  const [diagnosing, setDiagnosing] = useState(false);
+
+  // System reset
   const [resetting, setResetting] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
-  useEffect(() => {
-    fetch("/api/gateway/status")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.ip) setGatewayIp(d.ip);
-        if (d.port) setGatewayPort(String(d.port ?? "8091"));
-      });
+  const loadGateways = useCallback(async () => {
+    try {
+      const res = await fetch("/api/gateway/list");
+      const data = await res.json();
+      setGateways(data.gateways ?? []);
+    } catch {
+      setGateways([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
+    loadGateways();
     fetch("/api/devices")
       .then((r) => r.json())
       .then((d) => setDevices(d.devices ?? []));
-  }, []);
+  }, [loadGateways]);
 
-  const handleConnect = async (e: React.FormEvent) => {
+  const handleAddGateway = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gatewayIp.trim()) return;
-    setConnecting(true);
-    setMsg(null);
-    setDiagnostic(null);
+    if (!newIp.trim()) return;
+    setAdding(true);
     try {
-      const res = await fetch("/api/gateway/connect", {
+      const res = await fetch("/api/gateway/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ip: gatewayIp.trim(),
-          port: parseInt(gatewayPort) || 8091,
+          name: newName.trim() || undefined,
+          ip: newIp.trim(),
+          port: parseInt(newPort) || 8091,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "连接失败");
-      setMsg({ type: "success", text: `已连接到 ${gatewayIp}` });
-      // Trigger device sync in background
-      fetch("/api/devices", { method: "POST" });
+      if (!res.ok) throw new Error(data.error ?? "添加失败");
+      setNewName(""); setNewIp(""); setNewPort("8091");
+      await loadGateways();
     } catch (err) {
-      setMsg({ type: "error", text: err instanceof Error ? err.message : "连接失败" });
+      alert(err instanceof Error ? err.message : "添加失败");
     } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    await fetch("/api/gateway/disconnect", { method: "POST" });
-    setMsg({ type: "success", text: "已断开连接" });
-  };
-
-  const runDiagnostic = async () => {
-    if (!gatewayIp.trim()) return;
-    setDiagnosing(true);
-    setDiagnostic({ ping: "unknown", tcp: "unknown" });
-
-    // Test 1: ping via HTTP proxy (browser can't ping, but we can check if port is open via fetch)
-    // Since we can't ping from browser, we'll test TCP via our own API
-    try {
-      const res = await fetch("/api/gateway/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip: gatewayIp.trim(), port: parseInt(gatewayPort) || 8091 }),
-      });
-      const data = await res.json();
-      setDiagnostic(data);
-    } catch (err) {
-      setDiagnostic({ ping: "fail", tcp: "fail", error: err instanceof Error ? err.message : "检测失败" });
-    } finally {
-      setDiagnosing(false);
-    }
-  };
-
-  const handleReset = async () => {
-    setResetting(true);
-    setResetMsg(null);
-    try {
-      const res = await fetch("/api/system/reset", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "重置失败");
-      setResetMsg({ type: "success", text: "系统已重置，所有数据已清空，请重新连接网关" });
-      setShowResetConfirm(false);
-      setDevices([]);
-      setGatewayIp("");
-      setGatewayPort("8091");
-    } catch (err) {
-      setResetMsg({ type: "error", text: err instanceof Error ? err.message : "重置失败" });
-    } finally {
-      setResetting(false);
+      setAdding(false);
     }
   };
 
@@ -138,147 +113,94 @@ export default function SettingsPage() {
     }
   }, [powerDrafts]);
 
-  const statusColor =
-    status === "connected"
-      ? "bg-green-500"
-      : status === "reconnecting"
-      ? "bg-yellow-500"
-      : "bg-red-500";
-  const statusText =
-    status === "connected"
-      ? "已连接"
-      : status === "reconnecting"
-      ? "重新连接中"
-      : status === "connecting"
-      ? "连接中"
-      : "未连接";
+  const handleReset = async () => {
+    setResetting(true);
+    setResetMsg(null);
+    try {
+      const res = await fetch("/api/system/reset", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "重置失败");
+      setResetMsg({ type: "success", text: "系统已重置，所有数据已清空" });
+      setShowResetConfirm(false);
+      setDevices([]);
+      setGateways([]);
+    } catch (err) {
+      setResetMsg({ type: "error", text: err instanceof Error ? err.message : "重置失败" });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const overallStatus = gateways.some((g) => g.liveStatus === "connected")
+    ? "connected"
+    : gateways.some((g) => g.liveStatus === "reconnecting")
+      ? "reconnecting"
+      : "disconnected";
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <h1 className="text-xl font-semibold text-white">系统设置</h1>
 
-      {/* Gateway connection */}
-      <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-white">网关连接</h2>
-          <div className="flex items-center gap-3">
-            {status === "connected" && (
-              <button
-                onClick={handleDisconnect}
-                className="text-xs text-[#8a9baf] hover:text-red-400 transition-colors"
-              >
-                断开连接
-              </button>
-            )}
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${statusColor} ${status === "connected" ? "animate-pulse" : ""}`} />
-              <span className="text-xs text-[#8a9baf]">{statusText}</span>
-            </div>
-          </div>
-        </div>
-
-        {msg && (
-          <div
-            className={`text-sm rounded-md px-4 py-3 ${
-              msg.type === "success"
-                ? "bg-green-900/20 border border-green-800 text-green-400"
-                : "bg-red-900/20 border border-red-800 text-red-400"
-            }`}
-          >
-            {msg.text}
-          </div>
+      {/* Overall status bar */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-[#8a9baf]">网关状态:</span>
+        <span className={`w-2 h-2 rounded-full ${overallStatus === "connected" ? "bg-green-500 animate-pulse" : overallStatus === "reconnecting" ? "bg-yellow-500" : "bg-red-500"}`} />
+        <span className={overallStatus === "connected" ? "text-green-400" : "text-[#8a9baf]"}>
+          {overallStatus === "connected" ? "已连接" : overallStatus === "reconnecting" ? "重连中" : "未连接"}
+        </span>
+        {gateways.length > 0 && (
+          <span className="text-[#4a5b70]">({gateways.length} 个网关)</span>
         )}
+      </div>
 
-        <form onSubmit={handleConnect} className="flex gap-3">
+      {/* Gateway management */}
+      <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5 space-y-4">
+        <h2 className="text-sm font-medium text-white">网关管理</h2>
+
+        {/* Add gateway form */}
+        <form onSubmit={handleAddGateway} className="flex gap-3">
           <input
             type="text"
-            value={gatewayIp}
-            onChange={(e) => setGatewayIp(e.target.value)}
-            placeholder="网关 IP 地址 (例如 192.168.10.100)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="网关名称（可选）"
+            className="w-32 bg-[#0a1019] border border-[#1c2630] text-[#c0cad8] text-sm rounded-md px-3 py-2 focus:outline-none focus:border-[#137fec]"
+          />
+          <input
+            type="text"
+            value={newIp}
+            onChange={(e) => setNewIp(e.target.value)}
+            placeholder="网关 IP 地址"
             className="flex-1 bg-[#0a1019] border border-[#1c2630] text-[#c0cad8] text-sm rounded-md px-3 py-2 focus:outline-none focus:border-[#137fec]"
           />
           <input
             type="number"
-            value={gatewayPort}
-            onChange={(e) => setGatewayPort(e.target.value)}
+            value={newPort}
+            onChange={(e) => setNewPort(e.target.value)}
             placeholder="端口"
             className="w-24 bg-[#0a1019] border border-[#1c2630] text-[#c0cad8] text-sm rounded-md px-3 py-2 focus:outline-none focus:border-[#137fec]"
           />
           <button
             type="submit"
-            disabled={connecting || !gatewayIp.trim()}
+            disabled={adding || !newIp.trim()}
             className="px-5 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-sm rounded-md transition-colors disabled:opacity-40"
           >
-            {connecting ? "连接中..." : "连接"}
+            {adding ? "添加中..." : "添加网关"}
           </button>
         </form>
 
-        {/* Connection diagnostic */}
-        <div className="border-t border-[#1c2630] pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-medium text-[#8a9baf]">网络诊断</h3>
-            <button
-              onClick={runDiagnostic}
-              disabled={diagnosing || !gatewayIp.trim()}
-              className="text-xs text-[#3b9eff] hover:underline disabled:opacity-40 disabled:no-underline"
-            >
-              {diagnosing ? "检测中..." : "运行诊断"}
-            </button>
+        {/* Gateway list */}
+        {loading ? (
+          <p className="text-sm text-[#4a5b70] text-center py-4">加载中...</p>
+        ) : gateways.length === 0 ? (
+          <p className="text-sm text-[#4a5b70] text-center py-4">暂无网关，请添加</p>
+        ) : (
+          <div className="space-y-3">
+            {gateways.map((gw) => (
+              <GatewayCard key={gw.id} gateway={gw} onRefresh={loadGateways} />
+            ))}
           </div>
-
-          {diagnostic && (
-            <div className="space-y-3">
-              <DiagnosticRow
-                label="TCP 连接"
-                status={diagnostic.tcp}
-                detail={diagnostic.errors?.length ? diagnostic.errors.join(", ") : "连接成功"}
-              />
-              {diagnostic.rawMessages && diagnostic.rawMessages.length > 0 ? (
-                <div>
-                  <p className="text-xs text-[#4a5b70] mb-1">网关原始响应:</p>
-                  <div className="bg-[#0a1019] rounded border border-[#1c2630] p-3 max-h-48 overflow-y-auto space-y-1">
-                    {diagnostic.rawMessages.map((msg, i) => (
-                      <pre key={i} className="text-xs text-[#3b9eff] whitespace-pre-wrap break-all font-mono">
-                        {msg}
-                      </pre>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-yellow-400">
-                  ⚠️ 未收到任何响应 — 网关可能不支持 c.query 方法，或使用了不同的协议格式
-                </p>
-              )}
-              {diagnostic.error && (
-                <p className="text-xs text-red-400 mt-2">错误详情: {diagnostic.error}</p>
-              )}
-              {diagnostic.tcp === "ok" && diagnostic.rawMessages?.length === 0 && (
-                <p className="text-xs text-yellow-400 mt-1">
-                  连接成功但网关未响应。请检查网关协议版本是否与文档一致。
-                </p>
-              )}
-              {diagnostic.tcp === "ok" && (diagnostic.rawMessages?.length ?? 0) > 0 && (
-                <p className="text-xs text-green-400 mt-1">
-                  ✅ 网关响应正常！请点击「同步设备」获取设备列表
-                </p>
-              )}
-              {diagnostic.ping === "fail" && (
-                <p className="text-xs text-yellow-400 mt-1">
-                  ⚠️ 网关不可达。请确认：<br />
-                  1. IP 地址 {gatewayIp} 是否正确？<br />
-                  2. Mac 与网关在同一局域网？<br />
-                  3. 网关设备已开机且网络正常？
-                </p>
-              )}
-            </div>
-          )}
-
-          {!diagnostic && (
-            <p className="text-xs text-[#4a5b70]">
-              点击「运行诊断」检查网关 {gatewayIp || "192.168.10.100"} 是否可连接
-            </p>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Device power settings */}
@@ -380,6 +302,209 @@ export default function SettingsPage() {
   );
 }
 
+function GatewayCard({
+  gateway,
+  onRefresh,
+}: {
+  gateway: GatewayInfo;
+  onRefresh: () => void;
+}) {
+  const [connecting, setConnecting] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnostic, setDiagnostic] = useState<DiagnosticResult | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [msg, setMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
+  const liveStatus = gateway.liveStatus || gateway.status;
+  const statusColor =
+    liveStatus === "connected"
+      ? "bg-green-500"
+      : liveStatus === "reconnecting"
+        ? "bg-yellow-500"
+        : liveStatus === "error"
+          ? "bg-red-600"
+          : "bg-red-500";
+  const statusText =
+    liveStatus === "connected"
+      ? "已连接"
+      : liveStatus === "reconnecting"
+        ? "重连中"
+        : liveStatus === "connecting"
+          ? "连接中"
+          : liveStatus === "error"
+            ? "错误"
+            : "未连接";
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/gateway/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gatewayId: gateway.id, ip: gateway.ip, port: gateway.port }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "连接失败");
+      setMsg({ type: "success", text: `已连接到 ${gateway.ip}` });
+      await onRefresh();
+    } catch (err) {
+      setMsg({ type: "error", text: err instanceof Error ? err.message : "连接失败" });
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await fetch("/api/gateway/disconnect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gatewayId: gateway.id }),
+    });
+    setMsg({ type: "success", text: "已断开连接" });
+    await onRefresh();
+  };
+
+  const runDiagnostic = async () => {
+    setDiagnosing(true);
+    setDiagnostic({ ping: "unknown", tcp: "unknown" });
+    try {
+      const res = await fetch("/api/gateway/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: gateway.ip, port: gateway.port }),
+      });
+      const data = await res.json();
+      setDiagnostic(data);
+    } catch (err) {
+      setDiagnostic({ ping: "fail", tcp: "fail", error: err instanceof Error ? err.message : "检测失败" });
+    } finally {
+      setDiagnosing(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      const res = await fetch("/api/gateway/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gatewayId: gateway.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "删除失败");
+      await onRefresh();
+    } catch (err) {
+      setMsg({ type: "error", text: err instanceof Error ? err.message : "删除失败" });
+      setShowDeleteConfirm(false);
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#0a1019] rounded-lg border border-[#1c2630] p-4 space-y-3">
+      {/* Header: name + status */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-medium text-white">{gateway.name || `${gateway.ip}:${gateway.port}`}</h3>
+          <p className="text-xs text-[#4a5b70]">{gateway.ip}:{gateway.port}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${statusColor} ${liveStatus === "connected" ? "animate-pulse" : ""}`} />
+          <span className="text-xs text-[#8a9baf]">{statusText}</span>
+        </div>
+      </div>
+
+      {/* Messages */}
+      {msg && (
+        <div className={`text-sm rounded-md px-3 py-2 ${
+          msg.type === "success"
+            ? "bg-green-900/20 border border-green-800 text-green-400"
+            : "bg-red-900/20 border border-red-800 text-red-400"
+        }`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        {liveStatus !== "connected" ? (
+          <button
+            onClick={handleConnect}
+            disabled={connecting}
+            className="px-4 py-1.5 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-xs rounded-md transition-colors disabled:opacity-40"
+          >
+            {connecting ? "连接中..." : "连接"}
+          </button>
+        ) : (
+          <button
+            onClick={handleDisconnect}
+            className="px-4 py-1.5 bg-[#1c2630] hover:bg-[#253040] text-[#8a9baf] text-xs rounded-md transition-colors"
+          >
+            断开
+          </button>
+        )}
+        <button
+          onClick={runDiagnostic}
+          disabled={diagnosing}
+          className="px-4 py-1.5 bg-[#1c2630] hover:bg-[#253040] text-[#3b9eff] text-xs rounded-md transition-colors disabled:opacity-40"
+        >
+          {diagnosing ? "检测中..." : "诊断"}
+        </button>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={removing}
+          className="px-4 py-1.5 text-red-400 hover:text-red-300 text-xs transition-colors disabled:opacity-40"
+        >
+          {removing ? "删除中..." : "删除"}
+        </button>
+      </div>
+
+      {/* Diagnostic results */}
+      {diagnostic && (
+        <div className="space-y-2">
+          <DiagnosticRow
+            label="TCP 连接"
+            status={diagnostic.tcp}
+            detail={diagnostic.errors?.length ? diagnostic.errors.join(", ") : "连接成功"}
+          />
+          {diagnostic.rawMessages && diagnostic.rawMessages.length > 0 ? (
+            <div>
+              <p className="text-xs text-[#4a5b70] mb-1">网关原始响应:</p>
+              <div className="bg-[#0a1019] rounded border border-[#1c2630] p-3 max-h-32 overflow-y-auto space-y-1">
+                {diagnostic.rawMessages.map((m, i) => (
+                  <pre key={i} className="text-xs text-[#3b9eff] whitespace-pre-wrap break-all font-mono">
+                    {m}
+                  </pre>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-yellow-400">⚠️ 未收到任何响应</p>
+          )}
+          {diagnostic.tcp === "ok" && (diagnostic.rawMessages?.length ?? 0) > 0 && (
+            <p className="text-xs text-green-400">✅ 网关响应正常！</p>
+          )}
+          {diagnostic.error && (
+            <p className="text-xs text-red-400">错误: {diagnostic.error}</p>
+          )}
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-red-400">确定要删除此网关吗？设备不会被删除。</span>
+          <button onClick={handleRemove} className="px-3 py-1 bg-red-600 text-white text-xs rounded-md">确认</button>
+          <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-[#1c2630] text-[#8a9baf] text-xs rounded-md">取消</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DiagnosticRow({
   label,
   status,
@@ -389,8 +514,7 @@ function DiagnosticRow({
   status: "ok" | "fail" | "unknown";
   detail: string;
 }) {
-  const icon =
-    status === "ok" ? "✅" : status === "fail" ? "❌" : "⏳";
+  const icon = status === "ok" ? "✅" : status === "fail" ? "❌" : "⏳";
   const textColor =
     status === "ok" ? "text-green-400" : status === "fail" ? "text-red-400" : "text-[#4a5b70]";
   return (

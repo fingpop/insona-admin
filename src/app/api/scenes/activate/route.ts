@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { gatewayService } from "@/lib/gateway/GatewayService";
 import { prisma } from "@/lib/prisma";
+import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 
 export const runtime = "nodejs";
 
@@ -12,11 +12,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "sceneId and meshid are required" }, { status: 400 });
     }
 
-    if (!gatewayService.isConnected) {
-      return NextResponse.json({ error: "Gateway not connected" }, { status: 503 });
+    // Find a connected gateway that has this mesh
+    const gateways = multiGatewayService.getConnectedGateways();
+    const gw = gateways[0];
+    if (!gw) {
+      return NextResponse.json({ error: "No gateway connected" }, { status: 503 });
     }
 
-    await gatewayService.activateScene(sceneId, meshid);
+    await gw.activateScene(sceneId, meshid);
 
     return Response.json({ result: "ok" });
   } catch (err) {

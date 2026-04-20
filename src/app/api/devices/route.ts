@@ -1,4 +1,5 @@
-import { gatewayService } from "@/lib/gateway/GatewayService";
+import { NextResponse } from "next/server";
+import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_RATED_POWER, isGroupDevice } from "@/lib/types";
 import { InSonaDevice } from "@/lib/types";
@@ -11,19 +12,16 @@ export const runtime = "nodejs";
  * Falls back to the raw func value if funcs is empty.
  */
 function deriveFunc(rawFunc: number, funcs: number[]): number {
-  // If raw func is valid (>0) and funcs is empty, use raw func
   if (!funcs || funcs.length === 0) return rawFunc;
   if (rawFunc > 0 && funcs.length > 0) {
-    // Prefer derived func from funcs if raw func is not in the funcs list
     if (!funcs.includes(rawFunc)) return funcs[0];
     return rawFunc;
   }
-  // raw func is 0 or invalid — derive from funcs
-  if (funcs.includes(5)) return 5; // HSL
-  if (funcs.includes(4)) return 4; // dual color temp
-  if (funcs.includes(3)) return 3; // dimming
-  if (funcs.includes(2)) return 2; // on/off
-  return funcs[0]; // fallback to first available
+  if (funcs.includes(5)) return 5;
+  if (funcs.includes(4)) return 4;
+  if (funcs.includes(3)) return 3;
+  if (funcs.includes(2)) return 2;
+  return funcs[0];
 }
 
 export async function GET(request: Request) {
@@ -43,13 +41,11 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  // 从 EnergyRecord 表获取今日能耗数据（日汇总）
   const today = new Date().toISOString().split("T")[0];
   const energyRecords = await prisma.energyRecord.findMany({
     where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
   });
 
-  // 从 EnergyData 表获取最新功率（最近 1 小时）
   const recentEnergyData = await prisma.energyData.findMany({
     where: {
       timestamp: { gte: new Date(Date.now() - 3600000) },
@@ -58,30 +54,20 @@ export async function GET(request: Request) {
     orderBy: { sequence: "desc" },
   });
 
-  // 构建能耗映射：totalKwh 来自 EnergyRecord，latestPower 来自 EnergyData
   const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
   for (const record of energyRecords) {
-    energyMap.set(record.deviceId, {
-      totalKwh: record.kwh,
-      latestPower: record.peakWatts, // 默认使用峰值功率
-    });
+    energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
   }
 
-  // 更新最新功率（从最近 1 小时的明细数据）
   for (const data of recentEnergyData) {
     const existing = energyMap.get(data.deviceId);
     if (existing) {
       existing.latestPower = data.power;
     } else {
-      // 如果今天还没有能耗记录，创建新条目
-      energyMap.set(data.deviceId, {
-        totalKwh: 0,
-        latestPower: data.power,
-      });
+      energyMap.set(data.deviceId, { totalKwh: 0, latestPower: data.power });
     }
   }
 
-  // 合并设备数据和能耗数据
   const devicesWithEnergy = devices.map((d) => {
     const energy = energyMap.get(d.id);
     return {
@@ -96,85 +82,17 @@ export async function GET(request: Request) {
   return Response.json({ devices: devicesWithEnergy });
 }
 
-// POST /api/devices — trigger full sync from gateway
+// POST /api/devices — trigger full sync from ALL connected gateways
 export async function POST() {
   try {
-    if (!gatewayService.isConnected) {
-      return Response.json({ error: "Gateway not connected" }, { status: 503 });
+    const gateways = multiGatewayService.getConnectedGateways();
+    if (gateways.length === 0) {
+      return Response.json({ error: "No gateway connected" }, { status: 503 });
     }
 
-    const result = await gatewayService.queryDevices();
-
-    if (!result.devices) {
-      return Response.json({ error: "Invalid response from gateway" }, { status: 502 });
-    }
-
-    // Upsert rooms
-    if (result.rooms) {
-      for (const room of result.rooms) {
-        await prisma.room.upsert({
-          where: { id: String(room.roomId) },
-          update: { name: room.name },
-          create: { id: String(room.roomId), name: room.name },
-        });
-      }
-    }
-
-    // Upsert devices
-    for (const d of result.devices as InSonaDevice[]) {
-      const ratedPower = DEFAULT_RATED_POWER[d.type] ?? 10;
-      const isGroup = isGroupDevice(d.did);
-      const deviceFuncs = Array.isArray(d.funcs) ? d.funcs : [];
-      const resolvedFunc = deriveFunc(d.func ?? 0, deviceFuncs);
-
-      // meshid 为空时只能用简单唯一键，为空时用复合唯一键
-      const hasMeshId = d.meshid && d.meshid.trim() !== "";
-      const deviceId = (isGroup && hasMeshId)
-        ? `${d.meshid}:${d.did}`
-        : d.did;
-
-      const whereClause = hasMeshId && isGroup
-        ? { id_meshId: { id: deviceId, meshId: d.meshid } as { id: string; meshId: string } }
-        : { id: deviceId };
-
-      await prisma.device.upsert({
-        where: whereClause,
-        update: {
-          pid: d.pid,
-          ver: d.ver,
-          type: d.type,
-          alive: d.alive,
-          gatewayName: d.name,
-          func: resolvedFunc,
-          value: JSON.stringify(d.value ?? []),
-          groups: JSON.stringify(d.groups ?? []),
-          meshId: d.meshid || null,
-          originalDid: isGroup ? d.did : null,
-        },
-        create: {
-          id: deviceId,
-          pid: d.pid,
-          ver: d.ver,
-          type: d.type,
-          alive: d.alive,
-          name: d.name,
-          gatewayName: d.name,
-          func: resolvedFunc,
-          funcs: JSON.stringify(deviceFuncs),
-          value: JSON.stringify(d.value ?? []),
-          groups: JSON.stringify(d.groups ?? []),
-          meshId: d.meshid || null,
-          originalDid: isGroup ? d.did : null,
-          roomId: result.rooms?.find((r) => String(r.roomId) === String(d.roomId))
-            ? String(d.roomId)
-            : undefined,
-          ratedPower,
-        },
-      });
-      // 强制更新 funcs 字段（Prisma upsert 不比较 JSON 列的变化）
-      await prisma.$executeRaw`
-        UPDATE Device SET funcs = ${JSON.stringify(deviceFuncs)} WHERE id = ${deviceId}
-      `;
+    // Sync from all connected gateways
+    for (const gw of gateways) {
+      await gw.syncDevices();
     }
 
     const devices = await prisma.device.findMany({
@@ -182,13 +100,11 @@ export async function POST() {
       orderBy: { name: "asc" },
     });
 
-    // 从 EnergyRecord 表获取今日能耗数据（日汇总）
     const today = new Date().toISOString().split("T")[0];
     const energyRecords = await prisma.energyRecord.findMany({
       where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
     });
 
-    // 从 EnergyData 表获取最新功率（最近 1 小时）
     const recentEnergyData = await prisma.energyData.findMany({
       where: {
         timestamp: { gte: new Date(Date.now() - 3600000) },
@@ -197,24 +113,16 @@ export async function POST() {
       orderBy: { sequence: "desc" },
     });
 
-    // 构建能耗映射
     const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
     for (const record of energyRecords) {
-      energyMap.set(record.deviceId, {
-        totalKwh: record.kwh,
-        latestPower: record.peakWatts,
-      });
+      energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
     }
-
     for (const data of recentEnergyData) {
       const existing = energyMap.get(data.deviceId);
       if (existing) {
         existing.latestPower = data.power;
       } else {
-        energyMap.set(data.deviceId, {
-          totalKwh: 0,
-          latestPower: data.power,
-        });
+        energyMap.set(data.deviceId, { totalKwh: 0, latestPower: data.power });
       }
     }
 

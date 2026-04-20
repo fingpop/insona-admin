@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { gatewayService } from "@/lib/gateway/GatewayService";
+import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { prisma } from "@/lib/prisma";
 import { isGroupDevice } from "@/lib/types";
 
@@ -16,23 +16,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // 根据是否是组设备，使用不同的查询方式
     let device;
     let storedId: string;
     let controlDid = did;
 
     if (isGroupDevice(did)) {
-      // 组设备：使用 meshId:did 组合键查询
       storedId = `${meshid}:${did}`;
       device = await prisma.device.findUnique({
         where: { id_meshId: { id: storedId, meshId: meshid } },
       });
       if (device) {
-        // 使用存储的 originalDid 作为控制 DID
         controlDid = device.originalDid || did;
       }
     } else {
-      // 普通设备：直接用 did 查询
       storedId = did;
       device = await prisma.device.findUnique({ where: { id: did } });
     }
@@ -41,14 +37,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    if (!gatewayService.isConnected) {
+    // Route to the correct gateway via gatewayId
+    const gw = device.gatewayId ? multiGatewayService.getGateway(device.gatewayId) : undefined;
+    if (!gw || !gw.isConnected) {
       return NextResponse.json({ error: "Gateway not connected" }, { status: 503 });
     }
 
-    // 使用原始 DID 发送到网关
-    await gatewayService.controlDevice(controlDid, action, value ?? [], meshid, transition ?? 0);
+    await gw.controlDevice(controlDid, action, value ?? [], meshid, transition ?? 0);
 
-    // 更新本地状态
     if (isGroupDevice(did)) {
       await prisma.device.update({
         where: { id_meshId: { id: storedId, meshId: meshid } },

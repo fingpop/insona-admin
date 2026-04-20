@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
-import { gatewayService } from "@/lib/gateway/GatewayService";
+import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 export async function POST() {
   try {
-    // 1. Disconnect gateway
-    gatewayService.disconnect();
+    // Disconnect all gateways
+    const gateways = multiGatewayService.getConnectedGateways();
+    await Promise.all(gateways.map((gw) => gw.disconnect()));
 
-    // 2. Clear all database tables (in reverse dependency order)
+    // Clear all database tables
     await prisma.sceneAction.deleteMany();
     await prisma.scheduledTask.deleteMany();
     await prisma.scene.deleteMany();

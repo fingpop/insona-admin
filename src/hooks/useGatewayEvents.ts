@@ -4,6 +4,7 @@ import { useEffect, useReducer, useRef, useCallback } from "react";
 
 interface GatewayEvent {
   type: string;
+  gatewayId?: string;
   payload?: Record<string, unknown>;
 }
 
@@ -47,7 +48,6 @@ const initialState: GatewayState = {
   devices: {},
 };
 
-// 事件订阅者类型
 type EventCallback = (event: GatewayEvent) => void;
 
 export function useGatewayEvents() {
@@ -55,7 +55,6 @@ export function useGatewayEvents() {
   const esRef = useRef<EventSource | null>(null);
   const subscribersRef = useRef<Set<EventCallback>>(new Set());
 
-  // 订阅事件
   const subscribe = useCallback((callback: EventCallback): (() => void) => {
     subscribersRef.current.add(callback);
     return () => {
@@ -68,11 +67,18 @@ export function useGatewayEvents() {
     esRef.current = es;
 
     es.onopen = () => {
-      // SSE 连接成功后，获取真实网关状态
+      // Get aggregated gateway status
       fetch("/api/gateway/status")
         .then((r) => r.json())
         .then((d) => {
-          dispatch({ type: "STATUS", status: d.status ?? "disconnected" });
+          // Check if any gateway is connected
+          const gateways = d.gateways ?? [];
+          const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
+          const hasReconnecting = gateways.some((g: { status: string }) => g.status === "reconnecting");
+          dispatch({
+            type: "STATUS",
+            status: hasConnected ? "connected" : hasReconnecting ? "reconnecting" : "disconnected",
+          });
         })
         .catch(() => {
           dispatch({ type: "STATUS", status: "disconnected" });
@@ -87,7 +93,6 @@ export function useGatewayEvents() {
       try {
         const data = JSON.parse(e.data) as GatewayEvent;
 
-        // 通知所有订阅者
         subscribersRef.current.forEach((callback) => {
           try {
             callback(data);
@@ -104,7 +109,7 @@ export function useGatewayEvents() {
           const payload = data.payload as Record<string, unknown>;
           dispatch({ type: "EVENT", event: data });
 
-          if (payload.evt === "status") {
+          if (payload?.evt === "status") {
             dispatch({
               type: "DEVICE_STATUS",
               did: payload.did as string,
