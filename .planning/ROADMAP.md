@@ -11,6 +11,7 @@
 - [ ] **Phase 4: 控制面板基础架构** — 抽屉式面板组件、设备信息展示、加载状态 (PANEL-01, PANEL-02, PANEL-07)
 - [ ] **Phase 5: 控制面板控制组件** — 开关、亮度、色温即时控制，动态组件显示 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
 - [ ] **Phase 6: 视觉一致性优化与数据同步** — 表格/按钮/弹窗样式统一，控制后自动刷新 (VISUAL-01 through VISUAL-06, SYNC-01, SYNC-02)
+- [x] **Phase 7: 多网关架构** — 支持 10-20 个网关同时连接，设置页网关管理 UI，设备自动关联 (MG-01 through MG-07)
 
 ## Phase Details
 
@@ -59,6 +60,25 @@ Plans:
   7. 执行控制操作后组设备列表自动刷新，无需手动点击"同步"按钮
   8. parseValue 函数在设备管理TAB和组设备TAB中行为一致（复用同一实现）
 **Plans:** TBD
+**UI hint**: yes
+
+### Phase 7: 多网关架构
+**Goal:** 系统支持同时连接多个网关（10-20个），设置页提供网关管理 UI，设备自动归属来源网关
+**Depends on:** None (独立架构升级)
+**Requirements:** MG-01, MG-02, MG-03, MG-04, MG-05, MG-06, MG-07
+**Success Criteria** (what must be TRUE):
+  1. GatewayService 可实例化（非单例），MultiGatewayService 单例管理多个实例
+  2. 数据库 Gateway 表支持多条记录，Device 表有 gatewayId 关联
+  3. 设置页显示网关列表，支持添加、连接、断开、诊断、删除
+  4. 设备控制通过 gatewayId 路由到正确网关实例
+  5. SSE 事件携带 gatewayId，前端透明消费
+  6. 每个网关独立断线重连
+  7. 无遗留的 gatewayService 单例引用
+**Plans:** 1 plan
+
+Plans:
+- [ ] 07-01-PLAN.md — 数据库改造 + 去单例化 + MultiGatewayService + API 迁移 + 设置页 UI + 设备同步适配
+
 **UI hint**: yes
 
 ## Progress
