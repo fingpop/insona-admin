@@ -12,12 +12,16 @@ datasource db {
 }
 
 model Gateway {
-  id        String    @id @default("default")
+  id        String    @id @default(cuid())
+  name      String    @default("")
   ip        String
   port      Int       @default(8091)
-  status    String    @default("disconnected") // "connected" | "disconnected" | "reconnecting"
+  status    String    @default("disconnected") // "connected" | "disconnected" | "reconnecting" | "error"
   lastSeen  DateTime?
+  createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  devices   Device[]
 }
 
 model Room {
@@ -48,6 +52,8 @@ model Device {
   meshId      String?
   originalDid String?   // 原始 DID（组设备存储原始 ID，如 "00"）
   ratedPower  Float     @default(10.0) // watts, for energy reference
+  gatewayId   String?
+  gateway     Gateway?  @relation(fields: [gatewayId], references: [id])
   roomId      String?
   room        Room?     @relation(fields: [roomId], references: [id])
   createdAt   DateTime  @default(now())
@@ -63,6 +69,7 @@ model Device {
   @@index([roomId])
   @@index([alive])
   @@index([type])
+  @@index([gatewayId])
   @@unique([id, meshId])
 }
 
@@ -94,6 +101,7 @@ model SceneAction {
   value     String  // 动作值，JSON 格式：[1] 或 [50] 或 [50, 50]
   order     Int     @default(0)  // 执行顺序
   meshId    String  // 设备所属 mesh
+  gatewayId String?  // 执行时路由到对应网关
   deviceName String @default("") // 设备名称缓存
   @@index([sceneId])
 }

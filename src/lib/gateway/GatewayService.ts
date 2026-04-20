@@ -10,6 +10,7 @@ function debug(...args: unknown[]) {
 }
 
 class GatewayService {
+  private gatewayId: string;
   private socket: net.Socket | null = null;
   private ip: string = "";
   private port: number = 8091;
@@ -28,6 +29,15 @@ class GatewayService {
   // UUID counter capped at 9 digits for inSona gateway compatibility
   private _uuidCounter: number = 0;
   private _isManualDisconnect: boolean = false; // 区分手动断开和意外断开
+
+  constructor(gatewayId: string = "default") {
+    this.gatewayId = gatewayId;
+  }
+
+  get id() { return this.gatewayId; }
+  get connectionIp() { return this.ip; }
+  get connectionPort() { return this.port; }
+
   private _nextUuid(): number {
     this._uuidCounter = (this._uuidCounter + 1) % 1_000_000_000;
     return this._uuidCounter;
@@ -79,7 +89,7 @@ class GatewayService {
     // 更新数据库中的网关状态
     try {
       await prisma.gateway.update({
-        where: { id: "default" },
+        where: { id: this.gatewayId },
         data: {
           status: "disconnected",
           lastSeen: new Date(),
@@ -178,6 +188,7 @@ class GatewayService {
     // 将所有设备标记为离线
     try {
       await prisma.device.updateMany({
+        where: { gatewayId: this.gatewayId },
         data: { alive: 0 },
       });
       debug("All devices marked as offline");
@@ -420,6 +431,7 @@ class GatewayService {
               gatewayName: name,
               ratedPower: 10.0,
               roomId,
+              gatewayId: this.gatewayId,
             },
           });
         } catch (err) {
@@ -744,5 +756,4 @@ class GatewayService {
   }
 }
 
-// Singleton
-export const gatewayService = new GatewayService();
+export { GatewayService };

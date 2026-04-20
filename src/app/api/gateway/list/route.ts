@@ -13,7 +13,7 @@ export async function GET() {
   return NextResponse.json({
     gateways: gateways.map((gw) => ({
       ...gw,
-      status: connectedIds.has(gw.id) ? "connected" : gw.status,
+      liveStatus: connectedIds.has(gw.id) ? "connected" : gw.status,
     })),
   });
 }

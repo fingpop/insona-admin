@@ -1,4 +1,4 @@
-import { gatewayService } from "@/lib/gateway/GatewayService";
+import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +13,11 @@ export async function GET() {
       // Send initial connected event
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`));
 
-      // Subscribe to gateway events
-      unsubscribe = gatewayService.subscribeSSE((payload: string) => {
+      // Subscribe to multi-gateway events
+      unsubscribe = multiGatewayService.subscribeSSE((payload: string) => {
         try {
           controller.enqueue(encoder.encode(payload));
         } catch {
-          // Stream closed, cleanup immediately
           if (unsubscribe) unsubscribe();
           if (keepAlive) clearInterval(keepAlive);
         }
@@ -29,13 +28,11 @@ export async function GET() {
         try {
           controller.enqueue(encoder.encode(`: keepalive\n\n`));
         } catch {
-          // Stream closed, cleanup immediately
           if (keepAlive) clearInterval(keepAlive);
         }
       }, 30_000);
     },
     cancel() {
-      // 确保在流被取消时清理资源
       if (unsubscribe) {
         unsubscribe();
         unsubscribe = null;
