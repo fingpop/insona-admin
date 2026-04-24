@@ -33,10 +33,10 @@ daemon.log
 # Build artifacts
 tsconfig.tsbuildinfo
 
-# Docs and scripts (not needed for production)
+# Docs (not needed for production)
 docs/
-scripts/
 *.md
+!VERSION
 
 # Backup files
 *.tar.gz

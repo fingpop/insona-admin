@@ -1,7 +1,12 @@
+# 生产环境 docker-compose — 从 Docker Registry 拉取镜像
+# 使用方式:
+#   docker compose -f docker-compose.prod.yml up -d
+# 更新镜像:
+#   docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+
 services:
   insona-admin:
-    build: .
-    image: ${IMAGE_NAME:-insona-admin:local}
+    image: ${REGISTRY:-registry.cn-hangzhou.aliyuncs.com/your-namespace}/insona-admin:${TAG:-latest}
     ports:
       - "3000:3000"
     volumes:
@@ -25,6 +30,5 @@ services:
       retries: 3
       start_period: 40s
     # Run Prisma migrations before starting the app
-    # If migrate deploy fails (e.g. stale failed migration), fall back to db push
     command: >
       sh -c "( ./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma || ./node_modules/.bin/prisma db push --schema ./prisma/schema.prisma ) && node server.js"

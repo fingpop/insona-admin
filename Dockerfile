@@ -3,6 +3,9 @@ FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS builder
 
 WORKDIR /app
 
+# 配置国内 npm 镜像源（加速依赖安装）
+RUN npm config set registry https://registry.npmmirror.com
+
 # Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -21,6 +24,9 @@ FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+# 配置国内 npm 镜像源
+RUN npm config set registry https://registry.npmmirror.com
 
 # Install OpenSSL and other required libraries for Prisma
 RUN apk add --no-cache openssl zlib-dev

@@ -662,6 +662,14 @@ function Sidebar({
   onNavigate: (page: string) => void;
   gatewayStatus: string;
 }) {
+  const [version, setVersion] = useState("3.0");
+
+  useEffect(() => {
+    fetch("/api/system/version")
+      .then((r) => r.json())
+      .then((v) => setVersion(v.version ?? "3.0"))
+      .catch(() => {});
+  }, []);
   const navItems = [
     { id: "dashboard", label: "系统首页", icon: "fa-home" },
     { id: "devices", label: "设备管理", icon: "fa-lightbulb" },
@@ -690,7 +698,7 @@ function Sidebar({
             {!collapsed && (
               <div>
                 <h1 className="text-lg font-bold text-white">inSona商照平台</h1>
-                <p className="text-xs text-gray-400">Pro v3.0</p>
+                <p className="text-xs text-gray-400">Pro v{version}</p>
               </div>
             )}
           </div>

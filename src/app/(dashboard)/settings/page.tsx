@@ -48,6 +48,13 @@ export default function SettingsPage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
+  // System update
+  const [version, setVersion] = useState<{ version: string; platform: string } | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateLogs, setUpdateLogs] = useState<string[]>([]);
+  const [updateMsg, setUpdateMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
   const loadGateways = useCallback(async () => {
     try {
       const res = await fetch("/api/gateway/list");
@@ -65,6 +72,10 @@ export default function SettingsPage() {
     fetch("/api/devices")
       .then((r) => r.json())
       .then((d) => setDevices(d.devices ?? []));
+    fetch("/api/system/version")
+      .then((r) => r.json())
+      .then((v) => setVersion(v))
+      .catch(() => {});
   }, [loadGateways]);
 
   const handleAddGateway = async (e: React.FormEvent) => {
@@ -128,6 +139,39 @@ export default function SettingsPage() {
       setResetMsg({ type: "error", text: err instanceof Error ? err.message : "重置失败" });
     } finally {
       setResetting(false);
+    }
+  };
+
+  // System update handlers
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateMsg(null);
+    try {
+      await fetch("/api/system/version", { cache: "no-store" });
+      setUpdateMsg({ type: "success", text: `当前版本: ${version?.version}，如需更新请执行升级` });
+    } catch {
+      setUpdateMsg({ type: "error", text: "检查更新失败" });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    setUpdateMsg(null);
+    setUpdateLogs(["开始升级..."]);
+    try {
+      const res = await fetch("/api/system/update", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "升级失败");
+      setUpdateLogs(data.logs ?? []);
+      setUpdateMsg({ type: "success", text: "升级成功，页面将在 3 秒后刷新" });
+      setTimeout(() => window.location.reload(), 3000);
+    } catch (err) {
+      setUpdateLogs((prev) => [...prev, `错误: ${err instanceof Error ? err.message : "未知错误"}`]);
+      setUpdateMsg({ type: "error", text: err instanceof Error ? err.message : "升级失败" });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -249,6 +293,61 @@ export default function SettingsPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* System update */}
+      <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5 space-y-4">
+        <h2 className="text-sm font-medium text-white">系统更新</h2>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-xs text-[#4a5b70]">当前版本</p>
+            <p className="text-sm text-[#c0cad8] font-mono">{version?.version ?? "—"}</p>
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-[#4a5b70]">运行平台</p>
+            <p className="text-sm text-[#c0cad8] font-mono">{version?.platform ?? "—"}</p>
+          </div>
+        </div>
+
+        {updateMsg && (
+          <div className={`text-sm rounded-md px-4 py-3 ${
+            updateMsg.type === "success"
+              ? "bg-green-900/20 border border-green-800 text-green-400"
+              : "bg-red-900/20 border border-red-800 text-red-400"
+          }`}>
+            {updateMsg.text}
+          </div>
+        )}
+
+        {updateLogs.length > 0 && (
+          <div className="bg-[#0a1019] rounded border border-[#1c2630] p-3 max-h-48 overflow-y-auto space-y-1">
+            {updateLogs.map((log, i) => (
+              <pre key={i} className="text-xs text-[#8a9baf] whitespace-pre-wrap break-all font-mono">
+                {log}
+              </pre>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleCheckUpdate}
+            disabled={checkingUpdate || updating}
+            className="px-5 py-2 bg-[#1c2630] hover:bg-[#253040] text-[#8a9baf] text-sm rounded-md transition-colors disabled:opacity-40"
+          >
+            {checkingUpdate ? "检查中..." : "检查更新"}
+          </button>
+          <button
+            onClick={handleUpdate}
+            disabled={updating}
+            className="px-5 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-sm rounded-md transition-colors disabled:opacity-40"
+          >
+            {updating ? "升级中..." : "立即更新"}
+          </button>
+        </div>
+        <p className="text-xs text-[#4a5b70]">
+          注意: 升级前将自动备份数据库，升级过程中容器会短暂重启。
+        </p>
       </div>
 
       {/* System reset */}
