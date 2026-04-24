@@ -17,7 +17,7 @@
 set -e
 
 # ─── 配置 ───
-REGISTRY="${REGISTRY:-registry.cn-hangzhou.aliyuncs.com/your-namespace}"
+REGISTRY="${REGISTRY:-registry.cn-hangzhou.aliyuncs.com/insona}"
 IMAGE_NAME="insona-admin"
 PLATFORMS="linux/amd64,linux/arm64"
 TAG="${1:-latest}"

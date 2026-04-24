@@ -6,7 +6,7 @@
 
 services:
   insona-admin:
-    image: ${REGISTRY:-registry.cn-hangzhou.aliyuncs.com/your-namespace}/insona-admin:${TAG:-latest}
+    image: ${REGISTRY:-registry.cn-hangzhou.aliyuncs.com/insona}/insona-admin:${TAG:-latest}
     ports:
       - "3000:3000"
     volumes:

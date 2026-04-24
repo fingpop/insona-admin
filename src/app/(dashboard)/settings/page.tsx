@@ -346,7 +346,10 @@ export default function SettingsPage() {
           </button>
         </div>
         <p className="text-xs text-[#4a5b70]">
-          注意: 升级前将自动备份数据库，升级过程中容器会短暂重启。
+          注意: 升级通过服务器端脚本执行，需确保部署环境已配置 docker-compose.prod.yml。
+        </p>
+        <p className="text-xs text-[#3b9eff]">
+          手动升级: SSH 到服务器后执行 bash deploy/update.sh
         </p>
       </div>
 
