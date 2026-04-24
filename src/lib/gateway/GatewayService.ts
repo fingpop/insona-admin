@@ -342,6 +342,19 @@ class GatewayService {
   async syncDevices(): Promise<void> {
     debug("[SYNC] Starting device synchronization...");
 
+    // 校验网关是否存在
+    let validGatewayId: string | undefined = undefined;
+    try {
+      const gw = await prisma.gateway.findUnique({ where: { id: this.gatewayId } });
+      if (gw) {
+        validGatewayId = this.gatewayId;
+      } else {
+        debug(`[SYNC] Gateway ${this.gatewayId} not found in DB, devices will sync without gatewayId`);
+      }
+    } catch {
+      debug(`[SYNC] Failed to check gateway ${this.gatewayId}, devices will sync without gatewayId`);
+    }
+
     // 查询设备列表
     const result = await this.queryDevices();
 
@@ -368,6 +381,9 @@ class GatewayService {
       }
 
       const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
+
+      let saveSuccess = 0;
+      let saveFail = 0;
 
       for (const dev of gatewayDevices) {
         const did = String(dev.did);
@@ -397,6 +413,15 @@ class GatewayService {
         // 如果 groups 为空或无效，使用网关返回的 roomId
         if (!roomId && dev.roomId) {
           roomId = String(dev.roomId);
+        }
+
+        // 校验 roomId 是否存在，避免外键约束错误
+        if (roomId) {
+          const roomExists = await prisma.room.findUnique({ where: { id: roomId } });
+          if (!roomExists) {
+            debug(`[SYNC] Room ${roomId} not found for device ${did}, skipping roomId`);
+            roomId = undefined;
+          }
         }
 
         try {
@@ -431,15 +456,17 @@ class GatewayService {
               gatewayName: name,
               ratedPower: 10.0,
               roomId,
-              gatewayId: this.gatewayId,
+              ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
             },
           });
+          saveSuccess++;
         } catch (err) {
-          debug(`[SYNC] Failed to save device ${did}:`, err);
+          saveFail++;
+          debug(`[SYNC] Failed to save device ${did} (type=${type}, roomId=${roomId}):`, err instanceof Error ? err.message : String(err));
         }
       }
 
-      debug(`[SYNC] Successfully synchronized ${gatewayDevices.length} devices`);
+      debug(`[SYNC] Results: ${saveSuccess} saved, ${saveFail} failed out of ${gatewayDevices.length} total`);
     } else {
       debug("[SYNC] No devices in response");
     }

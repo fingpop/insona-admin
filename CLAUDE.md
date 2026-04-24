@@ -33,3 +33,5 @@ Single markdown document describing the inSona TCP-based control protocol. No so
 - Scene management
 - Function types: on/off, dimming, color temperature, HSL, RGB
 - Code examples in Python and JavaScript
+
+## 当前所有的修改的页面都是处于控制页面下的tab，非独立页面

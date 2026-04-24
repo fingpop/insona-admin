@@ -1202,7 +1202,7 @@ function DevicesPage({
   onSync: () => void;
 }) {
   const [filter, setFilter] = useState({ status: "", search: "", meshId: "", roomId: "" });
-  const [activeTab, setActiveTab] = useState<"lights" | "panels" | "sensors">("lights");
+  const [activeTab, setActiveTab] = useState<"lights" | "panels" | "sensors" | "other">("lights");
   const [editingDevice, setEditingDevice] = useState<InSonaDevice | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1243,6 +1243,7 @@ function DevicesPage({
     if (activeTab === "lights" && device.type !== 1984 && device.type !== 0) return false;
     if (activeTab === "panels" && device.type !== 1218) return false;
     if (activeTab === "sensors" && device.type !== 1344) return false;
+    if (activeTab === "other" && (device.type === 1984 || device.type === 0 || device.type === 1218 || device.type === 1344)) return false;
     // 按位置筛选
     if (filter.roomId) {
       const dbDevice = rooms.find(d => d.id === device.did);
@@ -1463,6 +1464,7 @@ function DevicesPage({
               { id: "lights", label: "灯光设备", icon: "fa-lightbulb" },
               { id: "panels", label: "控制面板", icon: "fa-tablet-alt" },
               { id: "sensors", label: "传感器", icon: "fa-broadcast-tower" },
+              { id: "other", label: "其他设备", icon: "fa-cog" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -4363,29 +4365,51 @@ function SettingsPage() {
         <h3 className="text-lg font-bold text-white mb-4">网关管理</h3>
 
         {/* 添加网关表单 */}
-        <form onSubmit={handleAddGateway} className="flex gap-3 mb-4">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="网关名称（可选）"
-            className="input-field w-32"
-          />
-          <input
-            type="text"
-            value={newIp}
-            onChange={(e) => setNewIp(e.target.value)}
-            placeholder="网关 IP 地址"
-            className="input-field flex-1"
-          />
-          <input
-            type="number"
-            value={newPort}
-            onChange={(e) => setNewPort(e.target.value)}
-            placeholder="端口"
-            className="input-field w-24"
-          />
-          <button type="submit" disabled={adding || !newIp.trim()} className="btn btn-primary disabled:opacity-40">
+        <form onSubmit={handleAddGateway} className="flex flex-wrap items-end gap-3 mb-6">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-gray-400">名称</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="可选"
+              className="input-field w-28"
+              style={{ padding: '8px 12px', fontSize: '14px' }}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+            <label className="text-xs text-gray-400">IP 地址</label>
+            <input
+              type="text"
+              value={newIp}
+              onChange={(e) => setNewIp(e.target.value)}
+              placeholder="例: 192.168.1.100"
+              className="input-field"
+              style={{ padding: '8px 12px', fontSize: '14px' }}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-gray-400">端口</label>
+            <input
+              type="number"
+              value={newPort}
+              onChange={(e) => setNewPort(e.target.value)}
+              placeholder="8091"
+              className="input-field w-24"
+              style={{ padding: '8px 12px', fontSize: '14px' }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={adding || !newIp.trim()}
+            className="btn btn-primary"
+            style={{
+              padding: '8px 20px',
+              fontSize: '14px',
+              opacity: (adding || !newIp.trim()) ? 0.4 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
             {adding ? "添加中..." : "添加网关"}
           </button>
         </form>
