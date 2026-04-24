@@ -42,11 +42,11 @@ echo ""
 
 # ─── Step 1: 确保 Buildx builder 存在 ───
 echo "[1/4] 检查 Buildx builder..."
-if ! docker buildx inspect multi-arch-builder >/dev/null 2>&1; then
-    echo "  创建 multi-arch-builder..."
-    docker buildx create --name multi-arch-builder --use
+if ! docker buildx inspect multiarch >/dev/null 2>&1; then
+    echo "  创建 multiarch builder..."
+    docker buildx create --name multiarch --use --driver docker-container
 else
-    docker buildx use multi-arch-builder
+    docker buildx use multiarch
 fi
 echo "  OK"
 

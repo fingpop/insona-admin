@@ -1,5 +1,5 @@
 # ─── Builder stage ───
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # ─── Runner stage ───
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
