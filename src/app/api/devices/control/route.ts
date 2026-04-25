@@ -16,20 +16,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // Route to the correct gateway via gatewayId
+    // Group devices: id in DB is the raw DID (e.g. "C1"), not "meshId:did"
     let device;
-    let storedId: string;
     let controlDid = did;
 
     if (isGroupDevice(did)) {
-      storedId = `${meshid}:${did}`;
+      // For group devices, look up by raw DID + meshId
       device = await prisma.device.findUnique({
-        where: { id_meshId: { id: storedId, meshId: meshid } },
+        where: { id_meshId: { id: did, meshId: meshid } },
       });
       if (device) {
         controlDid = device.originalDid || did;
       }
     } else {
-      storedId = did;
       device = await prisma.device.findUnique({ where: { id: did } });
     }
 
@@ -37,8 +37,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    // Route to the correct gateway via gatewayId
-    const gw = device.gatewayId ? multiGatewayService.getGateway(device.gatewayId) : undefined;
+    let connectedGateways = multiGatewayService.getConnectedGateways();
+
+    if (connectedGateways.length === 0) {
+      await multiGatewayService.loadAndConnectAll();
+      connectedGateways = multiGatewayService.getConnectedGateways();
+    }
+
+    let gw = device.gatewayId ? multiGatewayService.getGateway(device.gatewayId) : undefined;
+    if (gw && !gw.isConnected) {
+      gw = undefined;
+    }
+
+    if (!gw && device.meshId) {
+      const peers = await prisma.device.findMany({
+        where: {
+          meshId: device.meshId,
+          gatewayId: { not: null },
+        },
+        select: { gatewayId: true },
+        distinct: ["gatewayId"],
+      });
+
+      for (const peer of peers) {
+        if (!peer.gatewayId) continue;
+        const candidate = multiGatewayService.getGateway(peer.gatewayId);
+        if (candidate?.isConnected) {
+          gw = candidate;
+          break;
+        }
+      }
+    }
+
+    if (!gw && connectedGateways.length === 1) {
+      gw = connectedGateways[0];
+    }
+
     if (!gw || !gw.isConnected) {
       return NextResponse.json({ error: "Gateway not connected" }, { status: 503 });
     }
@@ -47,7 +81,7 @@ export async function POST(request: Request) {
 
     if (isGroupDevice(did)) {
       await prisma.device.update({
-        where: { id_meshId: { id: storedId, meshId: meshid } },
+        where: { id_meshId: { id: did, meshId: meshid } },
         data: { value: JSON.stringify(value ?? []) },
       });
     } else {

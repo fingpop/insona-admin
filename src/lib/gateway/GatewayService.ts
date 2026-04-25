@@ -1,4 +1,5 @@
 import net from "net";
+import { Prisma } from "@prisma/client";
 import { InSonaRequest, InSonaResponse } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
 import { logEnergyEvent } from "./EnergyLogger";
@@ -51,6 +52,21 @@ class GatewayService {
     return this._status === "connected";
   }
 
+  private async _updateGatewayStatus(status: "connected" | "disconnected" | "reconnecting" | "error") {
+    try {
+      await prisma.gateway.update({
+        where: { id: this.gatewayId },
+        data: {
+          status,
+          lastSeen: new Date(),
+        },
+      });
+      debug(`Gateway status updated to ${status} in database`);
+    } catch (err) {
+      debug(`Failed to update gateway status to ${status} in database:`, err);
+    }
+  }
+
   // ─── Connection ────────────────────────────────────────────────────────────
 
   connect(ip: string, port: number = 8091): Promise<void> {
@@ -86,19 +102,7 @@ class GatewayService {
     }
     this._status = "disconnected";
 
-    // 更新数据库中的网关状态
-    try {
-      await prisma.gateway.update({
-        where: { id: this.gatewayId },
-        data: {
-          status: "disconnected",
-          lastSeen: new Date(),
-        },
-      });
-      debug("Gateway status updated to disconnected in database");
-    } catch (err) {
-      debug("Failed to update gateway status in database:", err);
-    }
+    await this._updateGatewayStatus("disconnected");
 
     this.pendingRequests.forEach(({ reject, timeout }) => {
       clearTimeout(timeout);
@@ -118,10 +122,9 @@ class GatewayService {
         this._broadcast({ type: "connected" });
         this._startHeartbeatMonitor();
 
-        // 更新数据库中的网关状态
         try {
           await prisma.gateway.update({
-            where: { id: "default" },
+            where: { id: this.gatewayId },
             data: {
               ip: this.ip,
               port: this.port,
@@ -198,9 +201,11 @@ class GatewayService {
 
     // 只有非手动断开才自动重连
     if (!this._isManualDisconnect) {
+      await this._updateGatewayStatus("reconnecting");
       debug("Unexpected disconnect, will attempt to reconnect");
       this._scheduleReconnect();
     } else {
+      await this._updateGatewayStatus("disconnected");
       debug("Manual disconnect, skipping auto-reconnect");
       this._isManualDisconnect = false; // 重置标志
     }
@@ -208,6 +213,7 @@ class GatewayService {
 
   private _scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this._updateGatewayStatus("error").catch(() => {});
       debug("Max reconnect attempts reached, giving up");
       return;
     }
@@ -662,28 +668,47 @@ class GatewayService {
         debug(`[ENERGY] Inserting ${newPoints.length} new points (filtered ${dataPoints.length - newPoints.length} duplicates)`);
 
         // 2. 写入新数据到明细表
-        await prisma.energyData.createMany({
-          data: newPoints.map(p => ({
-            deviceId: did as string,
-            sequence: p.sequence,
-            date: today,
-            kwh: p.kwh,
-            percent: p.percent,
-            power: power as number,
-            period: period as number,
-          }))
-        });
+        const insertedPoints: typeof newPoints = [];
+        for (const point of newPoints) {
+          try {
+            await prisma.energyData.create({
+              data: {
+                deviceId: did as string,
+                sequence: point.sequence,
+                date: today,
+                kwh: point.kwh,
+                percent: point.percent,
+                power: power as number,
+                period: period as number,
+              }
+            });
+            insertedPoints.push(point);
+          } catch (err) {
+            if (
+              err instanceof Prisma.PrismaClientKnownRequestError &&
+              err.code === 'P2002'
+            ) {
+              continue;
+            }
+            throw err;
+          }
+        }
+
+        if (insertedPoints.length === 0) {
+          debug(`[ENERGY] All pending data points were inserted concurrently for device ${did}, skipping aggregate update`);
+          return;
+        }
 
         // 3. 计算新数据的能耗值（只累加新插入的）
-        totalKwh = newPoints.reduce((sum, p) => sum + p.kwh, 0);
-        maxPower = newPoints.reduce((max, p) => {
+        totalKwh = insertedPoints.reduce((sum, p) => sum + p.kwh, 0);
+        maxPower = insertedPoints.reduce((max, p) => {
           const powerWatts = (power as number) * (p.percent / 100);
           return Math.max(max, powerWatts);
         }, 0);
 
         // 更新 dataPoints 为新插入的数据点（用于后续聚合）
         dataPoints.length = 0;
-        dataPoints.push(...newPoints);
+        dataPoints.push(...insertedPoints);
 
         // 2. 更新小时聚合
         const existingHourly = await prisma.energyHourly.findUnique({

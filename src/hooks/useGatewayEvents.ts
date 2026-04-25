@@ -55,6 +55,25 @@ export function useGatewayEvents() {
   const esRef = useRef<EventSource | null>(null);
   const subscribersRef = useRef<Set<EventCallback>>(new Set());
 
+  const refreshGatewayStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/gateway/status");
+      const data = await response.json();
+      const gateways = data.gateways ?? [];
+      const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
+      const hasPendingConnection = gateways.some(
+        (g: { status: string }) => g.status === "reconnecting" || g.status === "connecting"
+      );
+
+      dispatch({
+        type: "STATUS",
+        status: hasConnected ? "connected" : hasPendingConnection ? "reconnecting" : "disconnected",
+      });
+    } catch {
+      dispatch({ type: "STATUS", status: "disconnected" });
+    }
+  }, []);
+
   const subscribe = useCallback((callback: EventCallback): (() => void) => {
     subscribersRef.current.add(callback);
     return () => {
@@ -67,26 +86,13 @@ export function useGatewayEvents() {
     esRef.current = es;
 
     es.onopen = () => {
-      // Get aggregated gateway status
-      fetch("/api/gateway/status")
-        .then((r) => r.json())
-        .then((d) => {
-          // Check if any gateway is connected
-          const gateways = d.gateways ?? [];
-          const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
-          const hasReconnecting = gateways.some((g: { status: string }) => g.status === "reconnecting");
-          dispatch({
-            type: "STATUS",
-            status: hasConnected ? "connected" : hasReconnecting ? "reconnecting" : "disconnected",
-          });
-        })
-        .catch(() => {
-          dispatch({ type: "STATUS", status: "disconnected" });
-        });
+      refreshGatewayStatus();
     };
 
     es.onerror = () => {
-      dispatch({ type: "STATUS", status: "disconnected" });
+      // Don't blindly set disconnected — the actual gateway status is managed
+      // by es.onopen (initial fetch) and es.onmessage (real SSE events).
+      // es.onerror fires for transient glitches, dev hot-reload, etc.
     };
 
     es.onmessage = (e) => {
@@ -101,10 +107,8 @@ export function useGatewayEvents() {
           }
         });
 
-        if (data.type === "connected") {
-          dispatch({ type: "STATUS", status: "connected" });
-        } else if (data.type === "disconnected") {
-          dispatch({ type: "STATUS", status: "disconnected" });
+        if (data.type === "connected" || data.type === "disconnected") {
+          refreshGatewayStatus().catch(() => {});
         } else if (data.type === "s.event") {
           const payload = data.payload as Record<string, unknown>;
           dispatch({ type: "EVENT", event: data });
@@ -127,7 +131,7 @@ export function useGatewayEvents() {
       es.close();
       esRef.current = null;
     };
-  }, []);
+  }, [refreshGatewayStatus]);
 
   return { ...state, subscribe };
 }

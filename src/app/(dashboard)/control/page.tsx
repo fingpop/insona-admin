@@ -204,6 +204,14 @@ function parseDeviceValue(rawValue: number[], func: number): number[] {
   return result;
 }
 
+function parseGatewayStatusValue(rawStatus: number[] | undefined, rawValue: number[], func: number): number[] {
+  if (rawStatus && rawStatus.length >= 3 && rawStatus[0] === 4) {
+    return [1, rawStatus[1] ?? 0, rawStatus[2] ?? 0];
+  }
+
+  return parseDeviceValue(rawValue, func);
+}
+
 // ==================== 主组件 ====================
 export default function ControlPanel() {
   const [currentPage, setCurrentPage] = useState<string>("dashboard");
@@ -230,13 +238,32 @@ export default function ControlPanel() {
   // SSE 事件监听
   const { subscribe } = useGatewayEvents();
 
+  const refreshGatewayStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/gateway/status");
+      const data = await response.json();
+      const gateways = data.gateways ?? [];
+      const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
+      const hasPendingConnection = gateways.some(
+        (g: { status: string }) => g.status === "reconnecting" || g.status === "connecting"
+      );
+
+      setGatewayStatus(hasConnected ? "connected" : hasPendingConnection ? "connecting" : "disconnected");
+      return gateways;
+    } catch (err) {
+      console.error("获取网关状态失败:", err);
+      setGatewayStatus("disconnected");
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = subscribe((event) => {
       if (event.type === "connected") {
-        setGatewayStatus("connected");
+        refreshGatewayStatus().catch(() => {});
         queryDevices();
       } else if (event.type === "disconnected") {
-        setGatewayStatus("disconnected");
+        refreshGatewayStatus().catch(() => {});
       } else if (event.type === "s.query" && event.payload) {
         // c.query 响应 → 更新设备列表
         const payload = event.payload as Record<string, unknown>;
@@ -299,10 +326,11 @@ export default function ControlPanel() {
         const did = String(scPayload.did ?? "");
         const func = Number(scPayload.func ?? 0);
         const rawValue = (scPayload.value as number[]) ?? [];
+        const rawStatus = (scPayload.status as number[]) ?? [];
         const meshid = scPayload.meshid ? String(scPayload.meshid) : undefined;
 
         // 根据 func 类型解析 value 数组
-        const parsedValue = parseDeviceValue(rawValue, func);
+        const parsedValue = parseGatewayStatusValue(rawStatus, rawValue, func);
 
         const update: Partial<InSonaDevice> = {
           did,
@@ -319,11 +347,12 @@ export default function ControlPanel() {
           const did = String(payload.did);
           const func = Number(payload.func ?? 0);
           const rawValue = (payload.value as number[]) ?? [];
+          const rawStatus = (payload.status as number[]) ?? [];
           const meshid = payload.meshid ? String(payload.meshid) : undefined;
 
           // 根据 func 类型解析 value 数组
           // func=2: value=[开关], func=3: value=[亮度], func=4: value=[亮度, 色温]
-          const parsedValue = parseDeviceValue(rawValue, func);
+          const parsedValue = parseGatewayStatusValue(rawStatus, rawValue, func);
 
           const update: Partial<InSonaDevice> = {
             did,
@@ -356,10 +385,12 @@ export default function ControlPanel() {
     const init = async () => {
       try {
         // 1. 获取网关配置
-        const statusRes = await fetch("/api/gateway/status");
-        const statusData = await statusRes.json();
-        if (statusData.ip) {
-          setGatewayIP(statusData.ip);
+        const gateways = await refreshGatewayStatus();
+
+        // 设置第一个网关的 IP（用于手动连接）
+        const firstGw = gateways.find((g: { ip: string }) => g.ip);
+        if (firstGw) {
+          setGatewayIP(firstGw.ip);
         }
 
         // 2. 加载设备和空间数据（即使未连接也显示本地数据）
@@ -397,7 +428,8 @@ export default function ControlPanel() {
         }
 
         // 4. 如果网关未连接，尝试自动重连
-        if (statusData.status !== "connected" && statusData.ip) {
+        const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
+        if (!hasConnected && gateways.length > 0) {
           setGatewayStatus("connecting");
           const connectRes = await fetch("/api/gateway/autoconnect", { method: "POST" });
           const connectData = await connectRes.json();
@@ -406,8 +438,11 @@ export default function ControlPanel() {
           } else {
             setGatewayStatus("disconnected");
           }
-        } else if (statusData.status === "connected") {
+        } else if (hasConnected) {
           setGatewayStatus("connected");
+        } else {
+          // 没有配置网关
+          setGatewayStatus("disconnected");
         }
       } catch (err) {
         console.error("初始化失败:", err);
@@ -416,7 +451,7 @@ export default function ControlPanel() {
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshGatewayStatus]);
 
   // 当用户切换到不同页面时，刷新数据
   useEffect(() => {
@@ -496,6 +531,8 @@ export default function ControlPanel() {
       if (data.error) {
         alert(data.error);
         setGatewayStatus("disconnected");
+      } else if (data.status === "connected") {
+        setGatewayStatus("connected");
       }
     } catch (err) {
       console.error("Connection failed:", err);

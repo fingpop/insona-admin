@@ -1,15 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 
-// Log path from env var, default to container path
-const LOG_PATH = process.env.LOG_PATH || '/app/data/logs/energy.log';
-const LOG_DIR = path.dirname(LOG_PATH);
+const DEFAULT_LOG_PATH = path.join(process.cwd(), 'data', 'logs', 'energy.log')
+const LOG_PATH = process.env.LOG_PATH || DEFAULT_LOG_PATH
+const LOG_DIR = path.dirname(LOG_PATH)
 
 // Ensure log directory exists (runs once on module import)
 try {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
+  fs.mkdirSync(LOG_DIR, { recursive: true })
 } catch {
-  // Ignore - may not have permission in test environment
 }
 
 /**
@@ -25,14 +24,15 @@ export function logEnergyEvent(msg: Record<string, unknown>): void {
     percent: msg.percent,
     period: msg.period,
     meshid: msg.meshid,
-    energy: msg.energy,
-  };
+    energy: msg.energy
+  }
 
-  const line = JSON.stringify(entry) + '\n';
+  const line = JSON.stringify(entry) + '\n'
 
   try {
-    fs.appendFileSync(LOG_PATH, line, 'utf8');
+    fs.mkdirSync(LOG_DIR, { recursive: true })
+    fs.appendFileSync(LOG_PATH, line, 'utf8')
   } catch (err) {
-    console.error('[EnergyLogger] Write failed:', err);
+    console.error('[EnergyLogger] Write failed:', err)
   }
 }
