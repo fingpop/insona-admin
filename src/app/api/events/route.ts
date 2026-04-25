@@ -10,8 +10,13 @@ export async function GET() {
 
   const stream = new ReadableStream({
     start(controller) {
-      // Send initial connected event
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`));
+      // Check actual gateway state and send correct initial status
+      const connectedGateways = multiGatewayService.getConnectedGateways();
+      if (connectedGateways.length > 0) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`));
+      } else {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "disconnected" })}\n\n`));
+      }
 
       // Subscribe to multi-gateway events
       unsubscribe = multiGatewayService.subscribeSSE((payload: string) => {

@@ -5,5 +5,9 @@ export const runtime = "nodejs";
 
 export async function POST() {
   await multiGatewayService.loadAndConnectAll();
-  return NextResponse.json({ status: "ok" });
+  const connected = multiGatewayService.getConnectedGateways();
+  return NextResponse.json({
+    status: connected.length > 0 ? "connected" : "disconnected",
+    connected: connected.length,
+  });
 }
