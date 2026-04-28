@@ -87,6 +87,7 @@ model Scene {
   updatedAt DateTime @updatedAt
   actions   SceneAction[]
   scheduledTasks ScheduledTask[]  // 关联的定时任务
+  panelSceneBindings PanelSceneBinding[]
   @@index([isDefault])
   @@index([isCustom])
   @@index([showInQuick])
@@ -196,4 +197,19 @@ model DashboardEvent {
   @@index([type])
   @@index([status])
   @@index([timestamp])
+}
+
+model PanelSceneBinding {
+  id          String   @id @default(cuid())
+  panelDid    String   // 面板设备 DID（不需要在 Device 表中存在）
+  buttonIndex Int      // 按键索引：0=按键1, 1=按键2, ...
+  sceneId     String   // 绑定的场景 ID（Scene 表的 id 字段）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scene       Scene    @relation(fields: [sceneId], references: [id])
+
+  @@unique([panelDid, buttonIndex])
+  @@index([panelDid])
+  @@index([sceneId])
 }

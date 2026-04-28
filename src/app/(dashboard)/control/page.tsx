@@ -661,6 +661,9 @@ export default function ControlPanel() {
               });
             }} devices={devices} spaces={spaces} />
           )}
+          {currentPage === "panel-linkage" && (
+            <PanelSceneLinkage />
+          )}
           {currentPage === "automation" && (
             <AutomationPage devices={dbDevices} />
           )}
@@ -714,6 +717,7 @@ function Sidebar({
     { id: "rooms", label: "空间管理", icon: "fa-layer-group" },
     { id: "automation", label: "自动化", icon: "fa-clock" },
     { id: "scenes", label: "场景管理", icon: "fa-magic" },
+    { id: "panel-linkage", label: "面板联动", icon: "fa-link" },
     { id: "energy", label: "能耗分析", icon: "fa-chart-line" },
     { id: "settings", label: "系统设置", icon: "fa-cog" },
   ];
@@ -824,6 +828,7 @@ function Header({
     rooms: { title: "空间管理", subtitle: "房间与区域管理" },
     automation: { title: "自动化", subtitle: "定时任务管理" },
     scenes: { title: "场景管理", subtitle: "场景配置与执行" },
+    "panel-linkage": { title: "面板联动", subtitle: "面板按键场景绑定" },
     energy: { title: "能耗分析", subtitle: "能耗数据与统计" },
     settings: { title: "系统设置", subtitle: "网关连接与配置" },
   };
@@ -5782,5 +5787,271 @@ function TaskEditModal({
         </div>
       </div>
     </>
+  );
+}
+
+// ==================== 面板场景联动 ====================
+function PanelSceneLinkage() {
+  const [panelDid, setPanelDid] = useState("");
+  const [buttonIndex, setButtonIndex] = useState(0);
+  const [selectedScene, setSelectedScene] = useState("");
+  const [bindings, setBindings] = useState<any[]>([]);
+  const [scenes, setScenes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSceneId, setEditSceneId] = useState("");
+
+  const loadBindings = async () => {
+    try {
+      const res = await fetch("/api/panel-bindings");
+      const data = await res.json();
+      if (data.bindings) setBindings(data.bindings);
+      if (data.scenes) setScenes(data.scenes);
+    } catch (err) {
+      console.error("Failed to load panel bindings:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadBindings();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!panelDid.trim()) {
+      alert("请输入面板 DID");
+      return;
+    }
+    if (!selectedScene) {
+      alert("请选择场景");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/panel-bindings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          panelDid: panelDid.trim(),
+          buttonIndex,
+          sceneId: selectedScene,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "创建失败");
+        return;
+      }
+      setPanelDid("");
+      setButtonIndex(0);
+      setSelectedScene("");
+      await loadBindings();
+    } catch (err) {
+      alert("创建失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("确认删除该绑定？")) return;
+    try {
+      const res = await fetch(`/api/panel-bindings/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "删除失败");
+        return;
+      }
+      await loadBindings();
+    } catch (err) {
+      alert("删除失败");
+    }
+  };
+
+  const startEdit = (binding: any) => {
+    setEditingId(binding.id);
+    setEditSceneId(binding.sceneId);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editSceneId) return;
+    try {
+      const res = await fetch(`/api/panel-bindings/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sceneId: editSceneId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "更新失败");
+        return;
+      }
+      setEditingId(null);
+      setEditSceneId("");
+      await loadBindings();
+    } catch (err) {
+      alert("更新失败");
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditSceneId("");
+  };
+
+  const buttonOptions = [0, 1, 2, 3, 4, 5];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-[#1a1f2e] rounded-xl border border-white/5 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">
+          <i className="fa fa-link mr-2 text-blue-400"></i>
+          新建按键绑定
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">面板 DID</label>
+            <input
+              type="text"
+              value={panelDid}
+              onChange={(e) => setPanelDid(e.target.value.toUpperCase())}
+              placeholder="ECC57F10C831FF"
+              className="w-full px-3 py-2 bg-[#0f1520] border border-white/10 rounded-lg text-white text-sm uppercase font-mono focus:border-blue-400 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">按键</label>
+            <select
+              value={buttonIndex}
+              onChange={(e) => setButtonIndex(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-[#0f1520] border border-white/10 rounded-lg text-white text-sm focus:border-blue-400 focus:outline-none"
+            >
+              {buttonOptions.map((idx) => (
+                <option key={idx} value={idx}>按键 {idx + 1}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">绑定场景</label>
+            <select
+              value={selectedScene}
+              onChange={(e) => setSelectedScene(e.target.value)}
+              className="w-full px-3 py-2 bg-[#0f1520] border border-white/10 rounded-lg text-white text-sm focus:border-blue-400 focus:outline-none"
+            >
+              <option value="">选择场景</option>
+              {scenes.map((scene) => (
+                <option key={scene.id} value={scene.id}>
+                  {scene.name}{scene.sceneId ? "" : " (无网关ID)"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handleCreate}
+              disabled={saving}
+              className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {saving ? "创建中..." : "创建绑定"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#1a1f2e] rounded-xl border border-white/5 overflow-hidden">
+        <div className="px-6 py-4 border-b border-white/5">
+          <h3 className="text-lg font-semibold text-white">
+            <i className="fa fa-list mr-2 text-blue-400"></i>
+            已有绑定
+          </h3>
+        </div>
+        {bindings.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <i className="fa fa-link text-3xl mb-3"></i>
+            <p>暂无绑定关系，请创建新的按键绑定</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/5">
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">面板 DID</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">按键</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">绑定场景</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">创建时间</th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-gray-400 uppercase">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bindings.map((binding) => (
+                <tr key={binding.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-3 font-mono text-sm text-gray-300">
+                    {binding.panelDid}
+                  </td>
+                  <td className="px-6 py-3">
+                    <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 text-xs font-medium">
+                      按键 {binding.buttonIndex + 1}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-300">
+                    {editingId === binding.id ? (
+                      <select
+                        value={editSceneId}
+                        onChange={(e) => setEditSceneId(e.target.value)}
+                        className="px-2 py-1 bg-[#0f1520] border border-white/10 rounded text-sm text-white focus:border-blue-400 focus:outline-none"
+                      >
+                        {scenes.map((scene) => (
+                          <option key={scene.id} value={scene.id}>{scene.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <i className={`fa ${binding.scene?.icon || "fa-star"} mr-1`} style={{ color: binding.scene?.color || "#3b9eff" }}></i>
+                        {binding.scene?.name || "未知场景"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-500">
+                    {new Date(binding.createdAt).toLocaleString("zh-CN")}
+                  </td>
+                  <td className="px-6 py-3 text-right">
+                    {editingId === binding.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={handleSaveEdit}
+                          className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 transition-colors"
+                        >
+                          <i className="fa fa-check mr-1"></i>保存
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="px-2 py-1 text-xs bg-gray-500/20 text-gray-400 rounded hover:bg-gray-500/30 transition-colors"
+                        >
+                          <i className="fa fa-times mr-1"></i>取消
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => startEdit(binding)}
+                          className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded hover:bg-yellow-500/30 transition-colors"
+                        >
+                          <i className="fa fa-edit mr-1"></i>更换
+                        </button>
+                        <button
+                          onClick={() => handleDelete(binding.id)}
+                          className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+                        >
+                          <i className="fa fa-trash mr-1"></i>删除
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }
