@@ -23,6 +23,14 @@ export default function DevicesPage() {
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [controlDevice, setControlDevice] = useState<Device | null>(null);
   const [editDevice, setEditDevice] = useState<Device | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    total: number;
+    bound: number;
+    skipped: number;
+    roomsCreated: number;
+    errors: number;
+  } | null>(null);
   // 默认网关离线，直到确认连接
   const [gatewayOffline, setGatewayOffline] = useState(true);
   const { devices, loading, error, syncDevices, controlDevice: control, refetch, updateDevice } = useDevices(
@@ -119,18 +127,52 @@ export default function DevicesPage() {
     }
   };
 
+  const handleImportBinding = async () => {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch("/api/import-room-binding", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "导入失败");
+        return;
+      }
+      setImportResult({
+        total: data.summary.total,
+        bound: data.summary.bound,
+        skipped: data.summary.skipped,
+        roomsCreated: data.summary.roomsCreated,
+        errors: data.summary.errors,
+      });
+      refetch();
+    } catch (err) {
+      alert("导入失败: " + (err instanceof Error ? err.message : "未知错误"));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-white">设备管理</h1>
-        <button
-          onClick={syncDevices}
-          disabled={loading}
-          className="px-4 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-sm rounded-md transition-colors disabled:opacity-50"
-        >
-          {loading ? "同步中..." : "同步设备"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleImportBinding}
+            disabled={importing}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-md transition-colors disabled:opacity-50"
+          >
+            {importing ? "导入中..." : "导入位置"}
+          </button>
+          <button
+            onClick={syncDevices}
+            disabled={loading}
+            className="px-4 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-sm rounded-md transition-colors disabled:opacity-50"
+          >
+            {loading ? "同步中..." : "同步设备"}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -219,6 +261,48 @@ export default function DevicesPage() {
           onClose={() => setEditDevice(null)}
           onSave={handleSaveDevice}
         />
+      )}
+
+      {/* Import Result Modal */}
+      {importResult && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              <i className="fa fa-check-circle mr-2 text-emerald-400"></i>
+              位置导入完成
+            </h3>
+            <div className="space-y-2 text-sm text-gray-300 mb-6">
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span>总记录数</span>
+                <span className="font-mono">{importResult.total}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span className="text-emerald-400">成功绑定</span>
+                <span className="font-mono text-emerald-400">{importResult.bound}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span>跳过(设备不存在)</span>
+                <span className="font-mono">{importResult.skipped}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span>自动创建房间</span>
+                <span className="font-mono text-blue-400">{importResult.roomsCreated}</span>
+              </div>
+              {importResult.errors > 0 && (
+                <div className="flex justify-between py-2">
+                  <span className="text-red-400">失败</span>
+                  <span className="font-mono text-red-400">{importResult.errors}</span>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setImportResult(null)}
+              className="w-full px-4 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white rounded-md transition-colors"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
