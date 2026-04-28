@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: v1.1 组设备控制优化
-status: Complete
-last_updated: "2026-04-16T23:45:00.000Z"
+milestone_name: milestone
+status: unknown
+last_updated: "2026-04-28T08:50:43.815Z"
 progress:
-  total_phases: 3
+  total_phases: 5
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -18,12 +18,12 @@ progress:
 
 **Core Value:** 程序能够在 Linux 服务器上以生产模式稳定运行，自动管理网关连接并持久化数据
 
-**Current Focus:** v1.1 组设备控制优化 — COMPLETE
+**Current Focus:** Phase --phase — 08
 
 ## Current Position
 
-Phase: 6 (视觉一致性优化与数据同步) — COMPLETE
-Plan: 6 of 6
+Phase: --phase (08) — EXECUTING
+Plan: 1 of --name
 | Item | Value |
 |------|-------|
 | Milestone | 组设备控制优化 v1.1 |
