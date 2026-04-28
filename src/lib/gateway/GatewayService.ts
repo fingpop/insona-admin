@@ -296,6 +296,12 @@ class GatewayService {
           debug("[ENERGY] Failed to save:", err);
         });
       }
+      // 处理面板按键事件
+      else if (msg.evt === "switch.key") {
+        this._handleSwitchKeyEvent(msg).catch((err) => {
+          debug("[SWITCH.KEY] Failed to process:", err);
+        });
+      }
       // 处理设备状态变化事件（创建 DashboardEvent）
       else if (msg.evt === "onoff" || msg.evt === "status") {
         this._handleDeviceEvent(msg).catch((err) => {
@@ -535,6 +541,89 @@ class GatewayService {
       } catch {
         this.sseConsumers.delete(consumer);
       }
+    }
+  }
+
+  // ─── Switch key event handling ─────────────────────────────────────────────
+
+  private async _handleSwitchKeyEvent(msg: Record<string, unknown>) {
+    const { did, func, value } = msg;
+
+    if (!did) {
+      debug("[SWITCH.KEY] Missing device ID");
+      return;
+    }
+
+    // 解析按键值
+    if (!Array.isArray(value) || value.length < 2) {
+      debug("[SWITCH.KEY] Invalid value format:", value);
+      return;
+    }
+
+    const buttonIndex = value[0] as number;
+    const buttonState = value[1] as number;
+
+    // 只在按下时触发（value[1] === 1），抬起不触发
+    if (buttonState !== 1) {
+      debug(`[SWITCH.KEY] Ignoring release event for button ${buttonIndex}`);
+      return;
+    }
+
+    // 查找绑定关系
+    const binding = await prisma.panelSceneBinding.findUnique({
+      where: {
+        panelDid_buttonIndex: {
+          panelDid: did as string,
+          buttonIndex,
+        },
+      },
+      include: { scene: true },
+    });
+
+    if (!binding) {
+      debug(`[SWITCH.KEY] No binding found for panel ${did} button ${buttonIndex}`);
+      return;
+    }
+
+    // 获取场景的 meshId
+    const meshId = binding.scene.meshId;
+    if (!meshId) {
+      debug(`[SWITCH.KEY] Scene ${binding.scene.name} has no meshId`);
+      return;
+    }
+
+    // 获取场景的网关场景 ID（scene.sceneId，Int 类型）
+    if (binding.scene.sceneId === null || binding.scene.sceneId === undefined) {
+      debug(`[SWITCH.KEY] Scene ${binding.scene.name} has no gateway sceneId`);
+      return;
+    }
+
+    try {
+      // 激活场景
+      await this.activateScene(binding.scene.sceneId, meshId);
+
+      // 记录触发日志到 DashboardEvent
+      await prisma.dashboardEvent.create({
+        data: {
+          type: "panel_button_trigger",
+          deviceId: did as string,
+          message: `面板 ${(did as string).slice(-6)} 按键${buttonIndex + 1} 触发场景「${binding.scene.name}」`,
+          status: "unread",
+          metadata: JSON.stringify({
+            panelDid: did,
+            buttonIndex,
+            buttonState,
+            func,
+            sceneName: binding.scene.name,
+            sceneId: binding.scene.sceneId,
+            meshId,
+          }),
+        },
+      });
+
+      debug(`[SWITCH.KEY] Activated scene "${binding.scene.name}" from panel ${did} button ${buttonIndex}`);
+    } catch (err) {
+      debug(`[SWITCH.KEY] Failed to activate scene:`, err);
     }
   }
 
