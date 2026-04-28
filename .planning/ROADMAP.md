@@ -12,6 +12,7 @@
 - [ ] **Phase 5: 控制面板控制组件** — 开关、亮度、色温即时控制，动态组件显示 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
 - [ ] **Phase 6: 视觉一致性优化与数据同步** — 表格/按钮/弹窗样式统一，控制后自动刷新 (VISUAL-01 through VISUAL-06, SYNC-01, SYNC-02)
 - [x] **Phase 7: 多网关架构** — 支持 10-20 个网关同时连接，设置页网关管理 UI，设备自动关联 (MG-01 through MG-07)
+- [ ] **Phase 8: 面板场景联动** — 面板按键事件绑定场景，接收按键协议自动执行场景 (PSL-01 through PSL-05)
 
 ## Phase Details
 
@@ -81,6 +82,23 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 8: 面板场景联动
+**Goal:** 用户可在控制面板中为面板设备（func=9）的按键绑定场景，网关推送 switch.key 事件时自动执行对应场景
+**Depends on:** Phase 7 (多网关架构 — 事件路由)
+**Requirements:** PSL-01, PSL-02, PSL-03, PSL-04, PSL-05
+**Success Criteria** (what must be TRUE):
+  1. 控制面板新增"面板联动"Tab，支持手动输入面板 DID，展示按键列表
+  2. 每个按键可通过下拉菜单绑定已创建的场景，绑定关系持久化到数据库
+  3. 网关推送 `s.event` + `switch.key` 事件时，系统查找绑定关系并自动调用场景激活接口
+  4. 按键协议格式：`{"version":1,"uuid":10352,"method":"s.event","evt":"switch.key","did":"ECC57F10C831FF","func":9,"value":[0,1]}`，value[0] 为按键索引，value[1] 为按下状态
+  5. 绑定关系支持解绑、切换场景操作
+**Plans:** 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — 数据库模型 + CRUD API + 网关事件处理 + 面板联动 UI (PSL-01, PSL-02, PSL-03, PSL-04, PSL-05)
+
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -112,4 +130,4 @@ Plans:
 **Coverage:** 15/15 v1.1 requirements mapped. No orphans.
 
 ---
-*Requirements defined: 2026-04-14. v1.1 added: 2026-04-16. Roadmap created: 2026-04-16. Phase 4 planned: 2026-04-16. Phase 5 planned: 2026-04-16*
+*Requirements defined: 2026-04-14. v1.1 added: 2026-04-16. Roadmap created: 2026-04-16. Phase 4 planned: 2026-04-16. Phase 5 planned: 2026-04-16. Phase 8 planned: 2026-04-28*
