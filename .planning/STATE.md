@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: milestone
-status: unknown
+status: milestone_complete
 last_updated: "2026-04-28T08:50:43.815Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 4
   completed_plans: 4
-  percent: 100
+  percent: 80
 ---
 
 # STATE.md — 商照管理后台 组设备控制优化
@@ -22,8 +22,8 @@ progress:
 
 ## Current Position
 
-Phase: --phase (08) — EXECUTING
-Plan: 1 of --name
+Phase: 08
+Plan: Not started
 | Item | Value |
 |------|-------|
 | Milestone | 组设备控制优化 v1.1 |

@@ -95,7 +95,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — 数据库模型 + CRUD API + 网关事件处理 + 面板联动 UI (PSL-01, PSL-02, PSL-03, PSL-04, PSL-05)
+- [x] 08-01-PLAN.md — 数据库模型 + CRUD API + 网关事件处理 + 面板联动 UI (PSL-01, PSL-02, PSL-03, PSL-04, PSL-05)
 
 **UI hint**: yes
 
