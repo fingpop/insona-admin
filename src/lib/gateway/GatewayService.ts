@@ -449,43 +449,57 @@ class GatewayService {
         const originalDidValue = isGroupDevice(did) ? did : undefined;
 
         try {
-          // Upsert 设备数据
-          await prisma.device.upsert({
-            where: { id: storedId },
-            update: {
-              pid,
-              ver,
-              type,
-              name,
-              meshId,
-              func,
-              alive,
-              value,
-              funcs,
-              groups,
-              gatewayName: name,
-              originalDid: originalDidValue,
-            },
-            create: {
-              id: storedId,
-              pid,
-              ver,
-              type,
-              name,
-              meshId,
-              func,
-              alive,
-              value,
-              funcs,
-              groups,
-              gatewayName: name,
-              ratedPower: 10.0,
-              roomId,
-              originalDid: originalDidValue,
-              ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
-            },
-          });
-          saveSuccess++;
+          // 组设备：先检查是否存在旧格式的纯 ID 记录，有的话迁移到复合 ID
+          if (isGroupDevice(did)) {
+            const existingPlain = await prisma.device.findUnique({ where: { id: did } });
+            if (existingPlain && existingPlain.id !== storedId) {
+              // 存在旧记录，更新 ID 为复合格式（同时更新数据）
+              await prisma.device.update({
+                where: { id: existingPlain.id },
+                data: {
+                  id: storedId,
+                  pid, ver, type, name, meshId, func, alive,
+                  value, funcs, groups, gatewayName: name,
+                  originalDid: originalDidValue,
+                },
+              });
+              saveSuccess++;
+            } else {
+              // 不存在旧记录，直接 upsert 复合 ID
+              await prisma.device.upsert({
+                where: { id: storedId },
+                update: {
+                  pid, ver, type, name, meshId, func, alive,
+                  value, funcs, groups, gatewayName: name,
+                  originalDid: originalDidValue,
+                },
+                create: {
+                  id: storedId, pid, ver, type, name, meshId,
+                  func, alive, value, funcs, groups, gatewayName: name,
+                  ratedPower: 10.0, roomId,
+                  originalDid: originalDidValue,
+                  ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
+                },
+              });
+              saveSuccess++;
+            }
+          } else {
+            // 普通设备：保持 upsert 逻辑
+            await prisma.device.upsert({
+              where: { id: did },
+              update: {
+                pid, ver, type, name, meshId, func, alive,
+                value, funcs, groups, gatewayName: name,
+              },
+              create: {
+                id: did, pid, ver, type, name, meshId,
+                func, alive, value, funcs, groups, gatewayName: name,
+                ratedPower: 10.0, roomId,
+                ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
+              },
+            });
+            saveSuccess++;
+          }
         } catch (err) {
           saveFail++;
           debug(`[SYNC] Failed to save device ${did} (storedId=${storedId}, type=${type}, roomId=${roomId}):`, err instanceof Error ? err.message : String(err));
