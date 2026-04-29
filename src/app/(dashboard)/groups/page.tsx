@@ -10,6 +10,7 @@ const getRawDid = (id: string): string => id.includes(":") ? id.split(":")[1] : 
 export default function GroupsPage() {
   const [filterMeshId, setFilterMeshId] = useState<string>("");
   const [filterAlive, setFilterAlive] = useState<number | undefined>(undefined);
+  const [filterRoomId, setFilterRoomId] = useState<string>("");
   const [searchText, setSearchText] = useState("");
   const [editingDevice, setEditingDevice] = useState<GroupDevice | null>(null);
   const [controllingDevice, setControllingDevice] = useState<GroupDevice | null>(null);
@@ -27,6 +28,17 @@ export default function GroupsPage() {
     return ids as string[];
   }, [groups]);
 
+  // 获取所有位置（从组设备的 room 信息中提取）
+  const roomOptions = useMemo(() => {
+    const roomMap = new Map<string, string>();
+    for (const g of groups) {
+      if (g.room?.id && g.room?.name && !roomMap.has(g.room.id)) {
+        roomMap.set(g.room.id, g.room.name);
+      }
+    }
+    return Array.from(roomMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [groups]);
+
   // 筛选后的组设备
   const filteredGroups = useMemo(() => {
     return groups.filter((g) => {
@@ -34,6 +46,8 @@ export default function GroupsPage() {
       if (filterMeshId && g.meshId !== filterMeshId) return false;
       // 按在线状态筛选
       if (filterAlive !== undefined && g.alive !== filterAlive) return false;
+      // 按位置筛选
+      if (filterRoomId && g.roomId !== filterRoomId) return false;
       // 按名称/ID 搜索（使用 displayId）
       if (searchText) {
         const search = searchText.toLowerCase();
@@ -43,7 +57,7 @@ export default function GroupsPage() {
       }
       return true;
     });
-  }, [groups, filterMeshId, filterAlive, searchText]);
+  }, [groups, filterMeshId, filterAlive, filterRoomId, searchText]);
 
   // 获取设备对应的房间名
   const getRoomName = (device: GroupDevice) => {
@@ -210,6 +224,23 @@ export default function GroupsPage() {
               <option value="offline">离线</option>
             </select>
 
+            {/* 位置筛选 */}
+            {roomOptions.length > 0 && (
+              <select
+                className="input-field"
+                style={{ width: "150px" }}
+                value={filterRoomId}
+                onChange={(e) => setFilterRoomId(e.target.value)}
+              >
+                <option value="">全部位置</option>
+                {roomOptions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {/* 名称搜索 */}
             <div className="relative flex-1" style={{ maxWidth: "300px" }}>
               <input
@@ -227,6 +258,7 @@ export default function GroupsPage() {
               onClick={() => {
                 setFilterMeshId("");
                 setFilterAlive(undefined);
+                setFilterRoomId("");
                 setSearchText("");
               }}
               className="btn btn-secondary"
