@@ -458,7 +458,7 @@ class GatewayService {
                 where: { id: existingPlain.id },
                 data: {
                   id: storedId,
-                  pid, ver, type, name, meshId, func, alive,
+                  pid, ver, type, meshId, func, alive,
                   value, funcs, groups, gatewayName: name,
                   originalDid: originalDidValue,
                 },
@@ -469,7 +469,7 @@ class GatewayService {
               await prisma.device.upsert({
                 where: { id: storedId },
                 update: {
-                  pid, ver, type, name, meshId, func, alive,
+                  pid, ver, type, meshId, func, alive,
                   value, funcs, groups, gatewayName: name,
                   originalDid: originalDidValue,
                 },
@@ -488,7 +488,7 @@ class GatewayService {
             await prisma.device.upsert({
               where: { id: did },
               update: {
-                pid, ver, type, name, meshId, func, alive,
+                pid, ver, type, meshId, func, alive,
                 value, funcs, groups, gatewayName: name,
               },
               create: {
