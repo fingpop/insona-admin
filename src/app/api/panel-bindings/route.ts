@@ -12,7 +12,6 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
       }),
       prisma.scene.findMany({
-        where: { sceneId: { not: null } },
         orderBy: { name: "asc" },
       }),
     ]);

@@ -5931,7 +5931,7 @@ function PanelSceneLinkage() {
               <option value="">选择场景</option>
               {scenes.map((scene) => (
                 <option key={scene.id} value={scene.id}>
-                  {scene.name}{scene.sceneId ? "" : " (无网关ID)"}
+                  {scene.name}
                 </option>
               ))}
             </select>

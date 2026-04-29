@@ -6,8 +6,9 @@ export const runtime = "nodejs";
 // PUT — 更换绑定场景
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const body = await request.json();
     const { sceneId } = body;
@@ -17,7 +18,7 @@ export async function PUT(
     }
 
     const binding = await prisma.panelSceneBinding.update({
-      where: { id: params.id },
+      where: { id },
       data: { sceneId },
       include: { scene: true },
     });
@@ -35,11 +36,12 @@ export async function PUT(
 // DELETE — 删除绑定
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     await prisma.panelSceneBinding.delete({
-      where: { id: params.id },
+      where: { id },
     });
     return Response.json({ result: "ok" });
   } catch (err) {
