@@ -2486,6 +2486,7 @@ function RoomsPage({
                           </p>
                           <p className="text-xs text-gray-400">
                             {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}
+                            {device.meshId && ` · Mesh ${device.meshId}`}
                           </p>
                         </div>
                       </div>
