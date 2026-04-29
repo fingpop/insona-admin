@@ -287,7 +287,7 @@ class GatewayService {
     if (method === "s.query" || method === "s.control") {
       const pending = this.pendingRequests.get(uuid);
       if (pending) {
-        debug(`[MATCH] Found pending request for uuid=${uuid}`);
+        debug(`[MATCH] Found pending request for uuid=${uuid}, response=${JSON.stringify(msg)}`);
         clearTimeout(pending.timeout);
         this.pendingRequests.delete(uuid);
         pending.resolve(msg);
@@ -331,7 +331,7 @@ class GatewayService {
         return;
       }
       const payload = JSON.stringify(req) + "\r\n";
-      debug(`[SEND] method=${req.method} uuid=${req.uuid}`);
+      debug(`[SEND] method=${req.method} uuid=${req.uuid} payload=${payload.trim()}`);
       this.socket.write(payload, (err) => {
         if (err) {
           debug(`[SEND] Error: ${err.message}`);
@@ -587,6 +587,7 @@ class GatewayService {
       value,
       transition,
     };
+    debug(`[CONTROL] did=${did} meshid=${meshid} action=${action} value=${JSON.stringify(value)} transition=${transition} uuid=${uuid}`);
     return this.sendRequest(req, timeoutMs);
   }
 
@@ -606,6 +607,7 @@ class GatewayService {
       action: "scene",
       value: [sceneId],
     };
+    debug(`[SCENE] meshid=${meshid} sceneId=${sceneId} uuid=${uuid}`);
     return this.sendRequest(req);
   }
 
