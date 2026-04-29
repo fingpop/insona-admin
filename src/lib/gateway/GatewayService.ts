@@ -512,6 +512,62 @@ class GatewayService {
     }
   }
 
+  /**
+   * 轻量刷新设备在线状态，不执行完整同步
+   * 仅查询网关设备列表并批量更新 alive 字段
+   */
+  async refreshDeviceAlive(): Promise<{ refreshed: number; online: number; offline: number }> {
+    debug("[ALIVE] Starting device alive refresh...");
+
+    try {
+      const result = await this.queryDevices();
+
+      if (!result || typeof result !== "object" || !("devices" in result)) {
+        debug("[ALIVE] No devices in response");
+        return { refreshed: 0, online: 0, offline: 0 };
+      }
+
+      const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
+
+      // 收集 alive 状态，用事务批量更新
+      const updates: Array<{ did: string; alive: number }> = [];
+      for (const dev of gatewayDevices) {
+        const did = String(dev.did);
+        const alive = Number(dev.alive ?? 1);
+        const type = Number(dev.type);
+
+        // 组设备使用复合 ID
+        const meshId = dev.meshid ? String(dev.meshid) : undefined;
+        const storedId = isGroupDevice(did) ? buildStoredDeviceId(meshId, did) : did;
+
+        updates.push({ did: storedId, alive });
+      }
+
+      let online = 0;
+      let offline = 0;
+
+      await prisma.$transaction(
+        updates.map((u) =>
+          prisma.device.updateMany({
+            where: { id: u.did },
+            data: { alive: u.alive },
+          })
+        )
+      );
+
+      for (const u of updates) {
+        if (u.alive === 1) online++;
+        else offline++;
+      }
+
+      debug(`[ALIVE] Refreshed ${updates.length} devices: ${online} online, ${offline} offline`);
+      return { refreshed: updates.length, online, offline };
+    } catch (err) {
+      debug("[ALIVE] Failed to refresh device alive:", err);
+      throw err;
+    }
+  }
+
   async controlDevice(
     did: string,
     action: string,
