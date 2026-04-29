@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
+import { parseStoredDeviceId } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -59,7 +60,10 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
             const action = sa.action === "cct" ? "ctl" : sa.action;
 
-            await gw.controlDevice(sa.deviceId, action, parsedValue, meshId, 0, 2000);
+            // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
+            const { did } = parseStoredDeviceId(sa.deviceId);
+
+            await gw.controlDevice(did, action, parsedValue, meshId, 0, 2000);
             results.push({ deviceId: sa.deviceId, action, meshId, success: true });
           } catch (err) {
             console.error(`[Scene Activate] 错误:`, err);

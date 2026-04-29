@@ -1,6 +1,7 @@
 import { CronExpressionParser } from "cron-parser";
 import { prisma } from "@/lib/prisma";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
+import { parseStoredDeviceId } from "@/lib/types";
 
 declare global {
   var __schedulerLastTick: number | undefined;
@@ -117,7 +118,9 @@ async function executeTask(
             continue;
           }
 
-          await gw.controlDevice(sa.deviceId, act, parsedValue, meshId, 0, 2000);
+          // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
+          const { did: controlDid } = parseStoredDeviceId(sa.deviceId);
+          await gw.controlDevice(controlDid, act, parsedValue, meshId, 0, 2000);
         }
       }
     } else if (task.deviceId && task.device) {
@@ -134,7 +137,9 @@ async function executeTask(
         return;
       }
 
-      await gw.controlDevice(task.deviceId, task.action, parsedValue, meshId);
+      // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
+      const { did: controlDid } = parseStoredDeviceId(task.deviceId);
+      await gw.controlDevice(controlDid, task.action, parsedValue, meshId);
 
       await prisma.device
         .update({ where: { id: task.deviceId }, data: { value: task.value } })
