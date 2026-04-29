@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
 
 interface RoomBindingEntry {
   deviceId: string;
@@ -10,8 +8,9 @@ interface RoomBindingEntry {
 
 /**
  * POST /api/import-room-binding
- * 从 room-binding.json 批量绑定设备到房间
+ * 从上传的 JSON 文件批量绑定设备到房间
  *
+ * 请求: multipart/form-data，字段 "file" 为 JSON 文件
  * JSON 格式:
  * [
  *   { "deviceId": "ECC57F10C831FF", "roomName": "1F大厅" },
@@ -22,17 +21,26 @@ interface RoomBindingEntry {
  */
 export async function POST(request: NextRequest) {
   try {
-    const filePath = path.join(process.cwd(), 'room-binding.json');
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
 
-    if (!fs.existsSync(filePath)) {
+    if (!file) {
       return NextResponse.json(
-        { error: 'room-binding.json 文件不存在' },
+        { error: '未上传文件' },
         { status: 400 }
       );
     }
 
-    const rawData = fs.readFileSync(filePath, 'utf-8');
-    const bindings: RoomBindingEntry[] = JSON.parse(rawData);
+    const rawData = await file.text();
+    let bindings: RoomBindingEntry[];
+    try {
+      bindings = JSON.parse(rawData);
+    } catch {
+      return NextResponse.json(
+        { error: '文件格式错误，无法解析 JSON' },
+        { status: 400 }
+      );
+    }
 
     if (!Array.isArray(bindings) || bindings.length === 0) {
       return NextResponse.json(

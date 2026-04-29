@@ -70,6 +70,22 @@
 - [ ] **SYNC-01**: 控制操作完成后自动刷新组设备列表（无需手动点击同步）
 - [ ] **SYNC-02**: 设备值解析逻辑与设备管理TAB统一（parseValue 函数复用）
 
+## v1.2 Requirements — 面板场景联动
+
+### 数据库与后端
+
+- [ ] **PSL-01**: 新增 `PanelSceneBinding` 表，存储面板 DID + 按键索引 → 场景的映射关系
+- [ ] **PSL-02**: `GatewayService._handleMessage` 处理 `switch.key` 事件，查找绑定并激活场景
+
+### 前端 UI
+
+- [ ] **PSL-03**: 控制面板新增"面板联动"Tab，支持手动输入面板 DID、配置按键绑定
+- [ ] **PSL-04**: 绑定列表展示已有关联，支持删除和更换场景
+
+### 事件日志
+
+- [ ] **PSL-05**: 按键触发场景执行后记录日志到 DashboardEvent 表
+
 ## Future Requirements
 
 ### SSE 实时状态推送（v1.2 候选）

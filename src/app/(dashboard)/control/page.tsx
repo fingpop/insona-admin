@@ -1337,23 +1337,13 @@ function DevicesPage({
   const handleSync = async () => {
     setSyncing(true);
     try {
-      // 如果网关未连接，先连接
-      if (gatewayStatus !== "connected" && gatewayIP) {
-        const connectRes = await fetch("/api/gateway/connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ip: gatewayIP }),
-        });
-        const connectData = await connectRes.json();
-        if (connectData.error) {
-          alert(`连接网关失败: ${connectData.error}`);
-          return;
-        }
-      }
-
       // 同步设备
       const syncRes = await fetch("/api/devices", { method: "POST" });
       const syncData = await syncRes.json();
+      if (syncRes.status === 503) {
+        alert("网关连接失败，请检查网关配置后重试");
+        return;
+      }
       if (syncData.error) {
         alert(`同步失败: ${syncData.error}`);
         return;

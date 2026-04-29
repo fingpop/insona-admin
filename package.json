@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "predev": "prisma generate",
+    "dev": "next dev",
     "dev:watch": "nodemon --exec \"npm run build\" --watch src/app/api --watch src/lib/gateway --watch src/hooks",
+    "prebuild": "prisma generate",
     "build": "next build",
+    "prestart": "prisma generate",
     "start": "next start",
     "scheduler": "node scripts/scheduler.js",
     "db:migrate": "prisma migrate dev",

@@ -31,6 +31,20 @@ export default function DevicesPage() {
     roomsCreated: number;
     errors: number;
   } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<{ deviceId: string; roomName: string }[] | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [showNameImportModal, setShowNameImportModal] = useState(false);
+  const [nameUploadFile, setNameUploadFile] = useState<File | null>(null);
+  const [namePreviewData, setNamePreviewData] = useState<{ deviceId: string; name: string }[] | null>(null);
+  const [namePreviewError, setNamePreviewError] = useState<string | null>(null);
+  const [nameImportResult, setNameImportResult] = useState<{
+    total: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
   // 默认网关离线，直到确认连接
   const [gatewayOffline, setGatewayOffline] = useState(true);
   const { devices, loading, error, syncDevices, controlDevice: control, refetch, updateDevice } = useDevices(
@@ -128,13 +142,125 @@ export default function DevicesPage() {
   };
 
   const handleImportBinding = async () => {
+    setShowImportModal(true);
+    setUploadFile(null);
+    setPreviewData(null);
+    setPreviewError(null);
+  };
+
+  const handleNameImport = () => {
+    setShowNameImportModal(true);
+    setNameUploadFile(null);
+    setNamePreviewData(null);
+    setNamePreviewError(null);
+    setNameImportResult(null);
+  };
+
+  const handleNameFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setNameUploadFile(file);
+    setNamePreviewData(null);
+    setNamePreviewError(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result;
+        if (typeof text !== 'string') throw new Error('读取文件失败');
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) throw new Error('文件格式错误：应为 JSON 数组');
+        for (const item of parsed) {
+          if (!item.deviceId || !item.name) {
+            throw new Error('文件格式错误：每条记录需包含 deviceId 和 name');
+          }
+        }
+        setNamePreviewData(parsed as { deviceId: string; name: string }[]);
+      } catch (err) {
+        setNamePreviewError(err instanceof Error ? err.message : '解析文件失败');
+        setNamePreviewData(null);
+      }
+    };
+    reader.onerror = () => {
+      setNamePreviewError('读取文件失败');
+      setNamePreviewData(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteNameImport = async () => {
+    if (!nameUploadFile) return;
+    setImporting(true);
+    setNameImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', nameUploadFile);
+      const res = await fetch('/api/import-device-names', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || '导入失败');
+        return;
+      }
+      setNameImportResult({
+        total: data.summary.total,
+        updated: data.summary.updated,
+        skipped: data.summary.skipped,
+        errors: data.summary.errors,
+      });
+      refetch();
+    } catch (err) {
+      alert('导入失败: ' + (err instanceof Error ? err.message : '未知错误'));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadFile(file);
+    setPreviewData(null);
+    setPreviewError(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const text = evt.target?.result;
+        if (typeof text !== 'string') throw new Error('读取文件失败');
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) throw new Error('文件格式错误：应为 JSON 数组');
+        // Validate structure
+        for (const item of parsed) {
+          if (!item.deviceId || !item.roomName) {
+            throw new Error('文件格式错误：每条记录需包含 deviceId 和 roomName');
+          }
+        }
+        setPreviewData(parsed as { deviceId: string; roomName: string }[]);
+      } catch (err) {
+        setPreviewError(err instanceof Error ? err.message : '解析文件失败');
+        setPreviewData(null);
+      }
+    };
+    reader.onerror = () => {
+      setPreviewError('读取文件失败');
+      setPreviewData(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteImport = async () => {
+    if (!uploadFile) return;
     setImporting(true);
     setImportResult(null);
     try {
-      const res = await fetch("/api/import-room-binding", { method: "POST" });
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      const res = await fetch('/api/import-room-binding', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "导入失败");
+        alert(data.error || '导入失败');
         return;
       }
       setImportResult({
@@ -144,9 +270,10 @@ export default function DevicesPage() {
         roomsCreated: data.summary.roomsCreated,
         errors: data.summary.errors,
       });
+      setShowImportModal(false);
       refetch();
     } catch (err) {
-      alert("导入失败: " + (err instanceof Error ? err.message : "未知错误"));
+      alert('导入失败: ' + (err instanceof Error ? err.message : '未知错误'));
     } finally {
       setImporting(false);
     }
@@ -158,6 +285,13 @@ export default function DevicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-white">设备管理</h1>
         <div className="flex gap-2">
+          <button
+            onClick={handleNameImport}
+            disabled={importing}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-md transition-colors disabled:opacity-50"
+          >
+            {importing ? "导入中..." : "导入名称"}
+          </button>
           <button
             onClick={handleImportBinding}
             disabled={importing}
@@ -263,6 +397,87 @@ export default function DevicesPage() {
         />
       )}
 
+      {/* Import Upload Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              <i className="fa fa-upload mr-2 text-emerald-400"></i>
+              导入位置绑定
+            </h3>
+
+            {/* File upload area */}
+            <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-[#253040] hover:border-[#137fec] rounded-lg p-8 cursor-pointer transition-colors mb-4">
+              <i className="fas fa-cloud-upload-alt text-3xl text-[#4a5b70] mb-2"></i>
+              <p className="text-sm text-[#8a9baf] mb-1">
+                {uploadFile ? `已选择: ${uploadFile.name}` : '点击或拖拽上传 JSON 文件'}
+              </p>
+              <p className="text-xs text-[#4a5b70]">支持任意名称的 JSON 文件</p>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </label>
+
+            {/* Preview error */}
+            {previewError && (
+              <div className="bg-red-900/20 border border-red-800 text-red-400 text-sm rounded-md px-4 py-3 mb-4">
+                {previewError}
+              </div>
+            )}
+
+            {/* Preview table */}
+            {previewData && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-[#c0cad8]">
+                    预览数据：<span className="text-emerald-400 font-mono">{previewData.length}</span> 条记录
+                  </p>
+                  <span className="text-xs text-[#4a5b70]">deviceId → roomName</span>
+                </div>
+                <div className="flex-1 overflow-y-auto rounded-md border border-[#1c2630]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0d1520] z-10">
+                      <tr className="border-b border-[#1c2630]">
+                        <th className="text-left px-3 py-2 text-[#8a9baf] font-medium">设备 ID</th>
+                        <th className="text-left px-3 py-2 text-[#8a9baf] font-medium">房间名称</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.map((item, i) => (
+                        <tr key={i} className="border-b border-[#1c2630]/50 hover:bg-white/[0.02]">
+                          <td className="px-3 py-1.5 font-mono text-xs text-[#c0cad8]">{item.deviceId}</td>
+                          <td className="px-3 py-1.5 text-[#c0cad8]">{item.roomName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 mt-4 pt-4 border-t border-white/5">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="flex-1 px-4 py-2 bg-[#1c2630] text-[#c0cad8] rounded-md hover:bg-[#253040] transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleExecuteImport}
+                disabled={!uploadFile || !previewData || importing}
+                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? '导入中...' : '确认导入'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Result Modal */}
       {importResult && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -297,6 +512,125 @@ export default function DevicesPage() {
             </div>
             <button
               onClick={() => setImportResult(null)}
+              className="w-full px-4 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white rounded-md transition-colors"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Name Import Upload Modal */}
+      {showNameImportModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              <i className="fa fa-upload mr-2 text-amber-400"></i>
+              导入设备名称
+            </h3>
+
+            {/* File upload area */}
+            <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-[#253040] hover:border-[#137fec] rounded-lg p-8 cursor-pointer transition-colors mb-4">
+              <i className="fas fa-cloud-upload-alt text-3xl text-[#4a5b70] mb-2"></i>
+              <p className="text-sm text-[#8a9baf] mb-1">
+                {nameUploadFile ? `已选择: ${nameUploadFile.name}` : '点击或拖拽上传 JSON 文件'}
+              </p>
+              <p className="text-xs text-[#4a5b70]">格式: [{`{ "deviceId": "...", "name": "..." }`}]</p>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleNameFileSelect}
+                className="hidden"
+              />
+            </label>
+
+            {/* Preview error */}
+            {namePreviewError && (
+              <div className="bg-red-900/20 border border-red-800 text-red-400 text-sm rounded-md px-4 py-3 mb-4">
+                {namePreviewError}
+              </div>
+            )}
+
+            {/* Preview table */}
+            {namePreviewData && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-[#c0cad8]">
+                    预览数据：<span className="text-amber-400 font-mono">{namePreviewData.length}</span> 条记录
+                  </p>
+                  <span className="text-xs text-[#4a5b70]">deviceId → name</span>
+                </div>
+                <div className="flex-1 overflow-y-auto rounded-md border border-[#1c2630]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0d1520] z-10">
+                      <tr className="border-b border-[#1c2630]">
+                        <th className="text-left px-3 py-2 text-[#8a9baf] font-medium">设备 ID</th>
+                        <th className="text-left px-3 py-2 text-[#8a9baf] font-medium">设备名称</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {namePreviewData.map((item, i) => (
+                        <tr key={i} className="border-b border-[#1c2630]/50 hover:bg-white/[0.02]">
+                          <td className="px-3 py-1.5 font-mono text-xs text-[#c0cad8]">{item.deviceId}</td>
+                          <td className="px-3 py-1.5 text-[#c0cad8]">{item.name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 mt-4 pt-4 border-t border-white/5">
+              <button
+                onClick={() => setShowNameImportModal(false)}
+                className="flex-1 px-4 py-2 bg-[#1c2630] text-[#c0cad8] rounded-md hover:bg-[#253040] transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleExecuteNameImport}
+                disabled={!nameUploadFile || !namePreviewData || importing}
+                className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? '导入中...' : '确认导入'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Name Import Result Modal */}
+      {nameImportResult && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1f2e] rounded-xl border border-white/10 p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              <i className="fa fa-check-circle mr-2 text-amber-400"></i>
+              名称导入完成
+            </h3>
+            <div className="space-y-2 text-sm text-gray-300 mb-6">
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span>总记录数</span>
+                <span className="font-mono">{nameImportResult.total}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span className="text-amber-400">成功更新</span>
+                <span className="font-mono text-amber-400">{nameImportResult.updated}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-white/5">
+                <span>跳过(设备不存在)</span>
+                <span className="font-mono">{nameImportResult.skipped}</span>
+              </div>
+              {nameImportResult.errors > 0 && (
+                <div className="flex justify-between py-2">
+                  <span className="text-red-400">失败</span>
+                  <span className="font-mono text-red-400">{nameImportResult.errors}</span>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setNameImportResult(null)}
               className="w-full px-4 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white rounded-md transition-colors"
             >
               关闭

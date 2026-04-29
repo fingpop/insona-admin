@@ -136,6 +136,10 @@ export default function GroupsPage() {
     try {
       const res = await fetch("/api/devices", { method: "POST" });
       const data = await res.json();
+      if (res.status === 503) {
+        alert("网关连接失败，请检查网关配置后重试");
+        return;
+      }
       if (data.error) {
         alert(`同步失败: ${data.error}`);
         return;

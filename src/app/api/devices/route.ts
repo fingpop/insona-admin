@@ -85,9 +85,15 @@ export async function GET(request: Request) {
 // POST /api/devices — trigger full sync from ALL connected gateways
 export async function POST() {
   try {
-    const gateways = multiGatewayService.getConnectedGateways();
+    let gateways = multiGatewayService.getConnectedGateways();
+
+    // If no gateways connected, attempt auto-reconnect
     if (gateways.length === 0) {
-      return Response.json({ error: "No gateway connected" }, { status: 503 });
+      await multiGatewayService.loadAndConnectAll();
+      gateways = multiGatewayService.getConnectedGateways();
+      if (gateways.length === 0) {
+        return Response.json({ error: "No gateway connected" }, { status: 503 });
+      }
     }
 
     // Sync from all connected gateways
