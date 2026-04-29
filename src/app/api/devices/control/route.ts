@@ -16,16 +16,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Route to the correct gateway via gatewayId
-    // Group devices: id in DB is the raw DID (e.g. "C1"), not "meshId:did"
+    // 组设备使用复合 ID（meshId:did），普通设备用原始 did
     let device;
     let controlDid = did;
 
     if (isGroupDevice(did)) {
-      // For group devices, look up by raw DID + meshId
-      device = await prisma.device.findUnique({
-        where: { id_meshId: { id: did, meshId: meshid } },
-      });
+      const compositeId = `${meshid}:${did}`;
+      device = await prisma.device.findUnique({ where: { id: compositeId } });
       if (device) {
         controlDid = device.originalDid || did;
       }
@@ -79,9 +76,10 @@ export async function POST(request: Request) {
 
     await gw.controlDevice(controlDid, action, value ?? [], meshid, transition ?? 0);
 
+    // 更新设备状态值
     if (isGroupDevice(did)) {
       await prisma.device.update({
-        where: { id_meshId: { id: did, meshId: meshid } },
+        where: { id: `${meshid}:${did}` },
         data: { value: JSON.stringify(value ?? []) },
       });
     } else {

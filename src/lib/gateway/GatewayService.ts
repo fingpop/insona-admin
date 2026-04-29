@@ -1,12 +1,21 @@
 import net from "net";
 import { Prisma } from "@prisma/client";
-import { InSonaRequest, InSonaResponse } from "@/lib/types";
+import { InSonaRequest, InSonaResponse, isGroupDevice, buildStoredDeviceId } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
 import { logEnergyEvent } from "./EnergyLogger";
 
 type SSEConsumer = (data: string) => void;
 
+const gatewayDebugEnabled = process.env.GATEWAY_DEBUG === "true";
+const gatewayTraceRawEnabled = process.env.GATEWAY_TRACE_RAW === "true";
+
 function debug(...args: unknown[]) {
+  if (!gatewayDebugEnabled) return;
+  console.log("[Gateway]", ...args);
+}
+
+function traceRaw(...args: unknown[]) {
+  if (!gatewayTraceRawEnabled) return;
   console.log("[Gateway]", ...args);
 }
 
@@ -155,7 +164,7 @@ class GatewayService {
       this.socket.on("data", (chunk: Buffer) => {
         const hex = chunk.toString("hex");
         const utf8 = chunk.toString("utf8");
-        debug(`[RECV] hex=${hex} str=${JSON.stringify(utf8)}`);
+        traceRaw(`[RECV] hex=${hex} str=${JSON.stringify(utf8)}`);
         this.buffer += utf8;
         this._drainBuffer();
       });
@@ -252,19 +261,19 @@ class GatewayService {
   // ─── Message parsing ────────────────────────────────────────────────────────
 
   private _drainBuffer() {
-    debug(`Buffer now: ${JSON.stringify(this.buffer)}`);
+    traceRaw(`Buffer now: ${JSON.stringify(this.buffer)}`);
     while (this.buffer.includes("\r\n")) {
       const idx = this.buffer.indexOf("\r\n");
       const line = this.buffer.slice(0, idx);
       this.buffer = this.buffer.slice(idx + 2);
       if (!line.trim()) continue;
-      debug(`[MSG] raw=${JSON.stringify(line)}`);
+      traceRaw(`[MSG] raw=${JSON.stringify(line)}`);
       try {
         const msg = JSON.parse(line);
-        debug(`[MSG] parsed=${JSON.stringify(msg)}`);
+        traceRaw(`[MSG] parsed=${JSON.stringify(msg)}`);
         this._handleMessage(msg);
       } catch {
-        debug(`[MSG] Failed to parse JSON: ${line}`);
+        debug(`[MSG] Failed to parse JSON`);
       }
     }
   }
@@ -273,7 +282,7 @@ class GatewayService {
     const method = msg.method as string;
     const uuid = msg.uuid as number;
 
-    debug(`[HANDLE] method=${method} uuid=${uuid} pendingUuids=${Array.from(this.pendingRequests.keys())}`);
+    debug(`[HANDLE] method=${method} uuid=${uuid}`);
 
     if (method === "s.query" || method === "s.control") {
       const pending = this.pendingRequests.get(uuid);
@@ -322,8 +331,7 @@ class GatewayService {
         return;
       }
       const payload = JSON.stringify(req) + "\r\n";
-      debug(`[SEND] ${JSON.stringify(req)}`);
-      debug(`[SEND-RAW] value type: ${typeof req.value}, value: ${JSON.stringify(req.value)}`);
+      debug(`[SEND] method=${req.method} uuid=${req.uuid}`);
       this.socket.write(payload, (err) => {
         if (err) {
           debug(`[SEND] Error: ${err.message}`);
@@ -436,10 +444,14 @@ class GatewayService {
           }
         }
 
+        // 组设备使用复合 ID（meshId:did），确保同 DID 在不同 mesh 下各自独立存储
+        const storedId = isGroupDevice(did) ? buildStoredDeviceId(meshId, did) : did;
+        const originalDidValue = isGroupDevice(did) ? did : undefined;
+
         try {
           // Upsert 设备数据
           await prisma.device.upsert({
-            where: { id: did },
+            where: { id: storedId },
             update: {
               pid,
               ver,
@@ -452,9 +464,10 @@ class GatewayService {
               funcs,
               groups,
               gatewayName: name,
+              originalDid: originalDidValue,
             },
             create: {
-              id: did,
+              id: storedId,
               pid,
               ver,
               type,
@@ -468,13 +481,14 @@ class GatewayService {
               gatewayName: name,
               ratedPower: 10.0,
               roomId,
+              originalDid: originalDidValue,
               ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
             },
           });
           saveSuccess++;
         } catch (err) {
           saveFail++;
-          debug(`[SYNC] Failed to save device ${did} (type=${type}, roomId=${roomId}):`, err instanceof Error ? err.message : String(err));
+          debug(`[SYNC] Failed to save device ${did} (storedId=${storedId}, type=${type}, roomId=${roomId}):`, err instanceof Error ? err.message : String(err));
         }
       }
 
@@ -503,7 +517,6 @@ class GatewayService {
       value,
       transition,
     };
-    console.log(`[GatewayService.controlDevice] value type: ${typeof value}, isArray: ${Array.isArray(value)}, value: ${JSON.stringify(value)}`);
     return this.sendRequest(req, timeoutMs);
   }
 
