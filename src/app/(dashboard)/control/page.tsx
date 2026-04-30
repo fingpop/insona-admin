@@ -2919,9 +2919,8 @@ function SceneEditModal({
     return space ? space.name : `空间${roomId}`;
   };
 
-  // Filter devices
+  // Filter devices (不根据在线状态过滤，所有设备都可选)
   const filteredDevices = devices.filter((d) => {
-    if (!d.alive) return false;
     if (selectedMeshId && d.meshid !== selectedMeshId) return false;
     if (selectedRoomId && d.roomId !== selectedRoomId) return false;
     if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
