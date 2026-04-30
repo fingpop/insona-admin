@@ -591,6 +591,25 @@ class GatewayService {
     return this.sendRequest(req, timeoutMs);
   }
 
+  // Fire-and-forget: send control command without waiting for gateway response
+  fireControl(did: string, action: string, value: number[], meshid: string, transition: number = 0): void {
+    if (!this.socket || this._status !== "connected") return;
+    const uuid = this._nextUuid();
+    const req: InSonaRequest = {
+      version: 1,
+      uuid,
+      method: "c.control",
+      did,
+      meshid,
+      action,
+      value,
+      transition,
+    };
+    const payload = JSON.stringify(req) + "\r\n";
+    debug(`[FIRE] did=${did} meshid=${meshid} action=${action} value=${JSON.stringify(value)} transition=${transition}`);
+    this.socket.write(payload);
+  }
+
   async queryScenes(): Promise<{ scenes: { sceneId: number; name: string }[] }> {
     const uuid = this._nextUuid();
     const req: InSonaRequest = { version: 1, uuid, method: "c.query.scene" };

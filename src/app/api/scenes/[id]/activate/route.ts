@@ -22,60 +22,72 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
     // Group actions by gateway for correct routing
     const actionsByGateway = new Map<string, typeof scene.actions>();
+
+    // Batch query all device gatewayIds in one call
+    const deviceIds = scene.actions.map((a) => a.deviceId);
+    const devices = await prisma.device.findMany({
+      where: { id: { in: deviceIds } },
+      select: { id: true, gatewayId: true },
+    });
+    const deviceGatewayMap = new Map(devices.map((d) => [d.id, d.gatewayId]));
+
     for (const action of scene.actions) {
-      // Try to find device's gatewayId
-      const device = await prisma.device.findUnique({ where: { id: action.deviceId } });
-      const gwKey = device?.gatewayId || "__fallback__";
+      const gwKey = deviceGatewayMap.get(action.deviceId) || "__fallback__";
       if (!actionsByGateway.has(gwKey)) actionsByGateway.set(gwKey, []);
       actionsByGateway.get(gwKey)!.push(action);
     }
 
     console.log(`[Scene Activate] 场景 "${scene.name}" 包含 ${scene.actions.length} 个动作`);
 
-    const results = [];
-    const errors = [];
+    // Flatten all actions with their gateway, then fire with 100ms interval
+    const queuedActions: Array<{
+      gw: ReturnType<typeof multiGatewayService.getGateway>;
+      did: string;
+      action: string;
+      parsedValue: number[];
+      meshId: string;
+      deviceId: string;
+    }> = [];
 
-    for (const [gwKey, actions] of actionsByGateway) {
+    for (const [gwKey, gwActions] of actionsByGateway) {
       const gw = gwKey === "__fallback__"
         ? multiGatewayService.getConnectedGateways()[0]
         : multiGatewayService.getGateway(gwKey);
 
       if (!gw?.isConnected) {
-        errors.push({ error: `Gateway ${gwKey} not connected` });
+        console.error(`[Scene Activate] Gateway ${gwKey} not connected, skipping ${gwActions.length} actions`);
         continue;
       }
 
-      // Group by mesh within this gateway
-      const byMesh = new Map<string, typeof actions>();
-      for (const a of actions) {
-        if (!byMesh.has(a.meshId)) byMesh.set(a.meshId, []);
-        byMesh.get(a.meshId)!.push(a);
-      }
+      for (const sa of gwActions) {
+        const strValue = typeof sa.value === "string" ? sa.value.replace(/[\[\]"]/g, "") : String(sa.value);
+        const parsedValue: number[] = strValue.split(",").map(Number);
+        const ctrlAction = sa.action === "cct" ? "ctl" : sa.action;
+        const { did } = parseStoredDeviceId(sa.deviceId);
 
-      for (const [meshId, meshActions] of byMesh) {
-        for (const sa of meshActions) {
-          try {
-            const strValue = typeof sa.value === "string" ? sa.value.replace(/[\[\]"]/g, "") : String(sa.value);
-            const parsedValue: number[] = strValue.split(",").map(Number);
-
-            const action = sa.action === "cct" ? "ctl" : sa.action;
-
-            // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
-            const { did } = parseStoredDeviceId(sa.deviceId);
-
-            await gw.controlDevice(did, action, parsedValue, meshId, 0, 2000);
-            results.push({ deviceId: sa.deviceId, action, meshId, success: true });
-          } catch (err) {
-            console.error(`[Scene Activate] 错误:`, err);
-            errors.push({ deviceId: sa.deviceId, error: String(err) });
-          }
-        }
+        queuedActions.push({ gw, did, action: ctrlAction, parsedValue, meshId: sa.meshId, deviceId: sa.deviceId });
       }
     }
 
-    console.log(`[Scene Activate] 执行完成，成功 ${results.length} 条，失败 ${errors.length} 条`);
+    console.log(`[Scene Activate] 共 ${queuedActions.length} 条指令待发送，间隔 100ms`);
 
-    return Response.json({ success: errors.length === 0, executed: results, errors: errors.length > 0 ? errors : undefined });
+    // Fire all commands with 100ms interval, no waiting for response
+    for (let i = 0; i < queuedActions.length; i++) {
+      const { gw, did, action, parsedValue, meshId, deviceId } = queuedActions[i];
+      try {
+        gw.fireControl(did, action, parsedValue, meshId, 0);
+      } catch (err) {
+        console.error(`[Scene Activate] 发送失败 [${i + 1}/${queuedActions.length}]:`, err);
+      }
+      // 100ms interval between each command (skip delay after the last one)
+      if (i < queuedActions.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    console.log(`[Scene Activate] 全部指令已发送完成，共 ${queuedActions.length} 条`);
+
+    return Response.json({ success: true, executed: queuedActions.length });
   } catch (err) {
     console.error("Failed to activate scene:", err);
     return NextResponse.json({ error: "执行场景失败" }, { status: 500 });

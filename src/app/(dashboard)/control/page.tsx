@@ -2869,7 +2869,7 @@ function SceneEditModal({
   const [addSelectedIds, setAddSelectedIds] = useState<Set<string>>(new Set());
   const [addDefaultAction, setAddDefaultAction] = useState<{ action: string; value: number[] }>({ action: "onoff", value: [1] });
 
-  // 初始化 selectedDevices（仅在客户端执行）
+  // 初始化 selectedDevices（仅在客户端执行，memo 化避免重复解析）
   useEffect(() => {
     if (!scene?.actions?.length) {
       setSelectedDevices(new Map());
@@ -2893,7 +2893,7 @@ function SceneEditModal({
     }
     setSelectedDevices(map);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene?.id]);
+  }, [scene?.id, scene?.actions]);
 
   // Get all mesh IDs from devices
   const meshIds = Array.from(new Set(devices.map((d) => d.meshid).filter(Boolean) as string[]));
@@ -3256,7 +3256,7 @@ function SceneEditModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#1a1a2e] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-[#1a1a2e] rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col relative">
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">
@@ -3666,9 +3666,9 @@ function SceneEditModal({
                 <button
                   className="btn btn-sm whitespace-nowrap btn-primary flex-1 justify-center"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || deleting}
                 >
-                  <i className="fas fa-save" />
+                  <i className={`fas ${saving ? "fa-spinner fa-spin" : "fa-save"} mr-2`} />
                   {saving ? "保存中..." : "保存"}
                 </button>
               </div>
@@ -3677,9 +3677,9 @@ function SceneEditModal({
                 <button
                   className="btn btn-sm w-full whitespace-nowrap bg-red-600 hover:bg-red-700 text-white justify-center"
                   onClick={handleDelete}
-                  disabled={deleting}
+                  disabled={deleting || saving}
                 >
-                  <i className="fas fa-trash" />
+                  <i className={`fas ${deleting ? "fa-spinner fa-spin" : "fa-trash"} mr-2`} />
                   {deleting ? "删除中..." : "删除"}
                 </button>
               )}
@@ -3687,6 +3687,16 @@ function SceneEditModal({
           </div>
           </div>
         </div>
+
+        {/* Loading overlay */}
+        {(saving || deleting) && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 rounded-2xl">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent" />
+              <span className="text-white text-sm">{saving ? "正在保存..." : "正在删除..."}</span>
+            </div>
+          </div>
+        )}
         {/* 同步目标弹窗 */}
         <SyncTargetModal />
       </div>
@@ -3757,7 +3767,7 @@ function ScenesPage({
 
     try {
       if (editingScene?.id) {
-        // Update existing scene
+        // Update existing scene + actions in single atomic call
         const res = await fetch(`/api/scenes/${editingScene.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -3767,18 +3777,18 @@ function ScenesPage({
             color: sceneData.color,
             meshId: sceneData.meshId,
             showInQuick: sceneData.showInQuick,
+            actions: actionsPayload,
           }),
         });
         if (!res.ok) throw new Error("更新失败");
+        const data = await res.json();
 
-        // Update actions
-        await fetch(`/api/scenes/${editingScene.id}/actions`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ actions: actionsPayload }),
-        });
+        // Partial state update — no full reload
+        setScenes((prev) =>
+          prev.map((s) => (s.id === editingScene.id ? data.scene : s))
+        );
       } else {
-        // Create new scene
+        // Create new scene + actions in single atomic call
         const res = await fetch("/api/scenes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -3789,19 +3799,15 @@ function ScenesPage({
             meshId: sceneData.meshId,
             isCustom: true,
             showInQuick: sceneData.showInQuick,
+            actions: actionsPayload,
           }),
         });
         if (!res.ok) throw new Error("创建失败");
         const data = await res.json();
-        if (data.scene?.id) {
-          await fetch(`/api/scenes/${data.scene.id}/actions`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ actions: actionsPayload }),
-          });
-        }
+
+        // Partial state update — no full reload
+        setScenes((prev) => [...prev, data.scene]);
       }
-      await loadScenes();
     } catch (err) {
       console.error("Save scene failed:", err);
       throw err;
