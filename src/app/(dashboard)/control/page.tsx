@@ -738,7 +738,7 @@ function Sidebar({
             </div>
             {!collapsed && (
               <div>
-                <h1 className="text-lg font-bold text-white">inSona商照平台</h1>
+                <h1 className="text-lg font-bold text-white">博鳌论坛照明管理平台</h1>
                 <p className="text-xs text-gray-400">Pro v{version}</p>
               </div>
             )}
