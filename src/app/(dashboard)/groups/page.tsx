@@ -516,7 +516,7 @@ function ControlGroupDrawer({
   // 即时控制：亮度松开即发送
   const handleBrightnessRelease = async () => {
     if (!device.meshId) return;
-    const action = device.func === 4 ? "ctl" : "dim";
+    const action = device.func === 4 ? "ctl" : "level";
     const value = device.func === 4 ? [brightnessValue, colorTempValue] : [brightnessValue];
     await onControl(rawDid, action, value, device.meshId);
   };
