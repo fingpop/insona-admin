@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
     // Flatten all actions with their gateway, then fire with 100ms interval
     const queuedActions: Array<{
-      gw: ReturnType<typeof multiGatewayService.getGateway>;
+      gw: NonNullable<ReturnType<typeof multiGatewayService.getGateway>>;
       did: string;
       action: string;
       parsedValue: number[];
@@ -54,10 +54,12 @@ export async function POST(request: Request, { params }: { params: Params }) {
         ? multiGatewayService.getConnectedGateways()[0]
         : multiGatewayService.getGateway(gwKey);
 
-      if (!gw?.isConnected) {
+      if (!gw || !gw.isConnected) {
         console.error(`[Scene Activate] Gateway ${gwKey} not connected, skipping ${gwActions.length} actions`);
         continue;
       }
+
+      const connectedGw = gw;
 
       for (const sa of gwActions) {
         const strValue = typeof sa.value === "string" ? sa.value.replace(/[\[\]"]/g, "") : String(sa.value);
@@ -65,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
         const ctrlAction = sa.action === "cct" ? "ctl" : sa.action;
         const { did } = parseStoredDeviceId(sa.deviceId);
 
-        queuedActions.push({ gw, did, action: ctrlAction, parsedValue, meshId: sa.meshId, deviceId: sa.deviceId });
+        queuedActions.push({ gw: connectedGw, did, action: ctrlAction, parsedValue, meshId: sa.meshId, deviceId: sa.deviceId });
       }
     }
 
