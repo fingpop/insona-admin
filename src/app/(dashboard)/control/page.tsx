@@ -215,7 +215,6 @@ function parseGatewayStatusValue(rawStatus: number[] | undefined, rawValue: numb
 // ==================== 主组件 ====================
 export default function ControlPanel() {
   const [currentPage, setCurrentPage] = useState<string>("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [gatewayStatus, setGatewayStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
   const [gatewayIP, setGatewayIP] = useState("");
   const [dbDevices, setDbDevices] = useState<DbDevice[]>([]);
@@ -592,19 +591,13 @@ export default function ControlPanel() {
     <div className="min-h-screen bg-[#0f1419] text-[#e1e8ed]">
       {/* 侧边栏 */}
       <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         currentPage={currentPage}
         onNavigate={setCurrentPage}
         gatewayStatus={gatewayStatus}
       />
 
       {/* 主内容 */}
-      <main
-        className={`transition-all duration-300 ${
-          sidebarCollapsed ? "ml-[70px]" : "ml-[260px]"
-        }`}
-      >
+      <main className="ml-[260px]">
         {/* 顶部导航 */}
         <Header
           currentPage={currentPage}
@@ -690,24 +683,25 @@ export default function ControlPanel() {
 
 // ==================== 侧边栏组件 ====================
 function Sidebar({
-  collapsed,
-  onToggle,
   currentPage,
   onNavigate,
   gatewayStatus,
 }: {
-  collapsed: boolean;
-  onToggle: () => void;
   currentPage: string;
   onNavigate: (page: string) => void;
   gatewayStatus: string;
 }) {
   const [version, setVersion] = useState("3.0");
+  const [projectName, setProjectName] = useState("博鳌论坛照明管理平台");
 
   useEffect(() => {
     fetch("/api/system/version")
       .then((r) => r.json())
       .then((v) => setVersion(v.version ?? "3.0"))
+      .catch(() => {});
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => setProjectName(data.projectName ?? "博鳌论坛照明管理平台"))
       .catch(() => {});
   }, []);
   const navItems = [
@@ -724,47 +718,36 @@ function Sidebar({
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen bg-gradient-to-b from-[#1a1f2e] to-[#151a28] transition-all duration-300 z-50 flex flex-col border-r border-white/5 ${
-        collapsed ? "w-[70px]" : "w-[260px]"
-      }`}
+      className="fixed left-0 top-0 h-screen bg-gradient-to-b from-[#1a1f2e] to-[#151a28] z-50 flex flex-col border-r border-white/5 w-[260px]"
       style={{ boxShadow: "4px 0 20px rgba(0,0,0,0.5)" }}
     >
       {/* 头部 */}
       <div className="p-6 border-b border-white/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <i className="fas fa-lightbulb text-white text-xl" />
             </div>
-            {!collapsed && (
-              <div>
-                <h1 className="text-lg font-bold text-white">博鳌论坛照明管理平台</h1>
-                <p className="text-xs text-gray-400">Pro v{version}</p>
-              </div>
-            )}
+            <div>
+              <h1 className="text-lg font-bold text-white">{projectName}</h1>
+              <p className="text-xs text-gray-400">Pro v{version}</p>
+            </div>
           </div>
-          <button onClick={onToggle} className="text-gray-400 hover:text-white transition-colors">
-            <i className={`fas ${collapsed ? "fa-bars" : "fa-times"} text-xl`} />
-          </button>
         </div>
       </div>
 
       {/* 网关状态指示 */}
-      <div className={`px-4 py-3 border-b border-white/5 ${collapsed ? "text-center" : ""}`}>
-        {!collapsed ? (
-          <div className="flex items-center gap-2">
-            <span className={`status-indicator ${gatewayStatus === "connected" ? "status-online" : gatewayStatus === "connecting" ? "status-warning" : "status-offline"}`} />
-            <span className="text-xs text-gray-400">
-              {gatewayStatus === "connected" ? "网关已连接" : gatewayStatus === "connecting" ? "连接中..." : "网关未连接"}
-            </span>
-          </div>
-        ) : (
-          <span className={`status-indicator mx-auto ${gatewayStatus === "connected" ? "status-online" : gatewayStatus === "connecting" ? "status-warning" : "status-offline"}`} />
-        )}
+      <div className="px-4 py-3 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span className={`status-indicator ${gatewayStatus === "connected" ? "status-online" : gatewayStatus === "connecting" ? "status-warning" : "status-offline"}`} />
+          <span className="text-xs text-gray-400">
+            {gatewayStatus === "connected" ? "网关已连接" : gatewayStatus === "connecting" ? "连接中..." : "网关未连接"}
+          </span>
+        </div>
       </div>
 
       {/* 导航 */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-4 overflow-y-auto">
         {navItems.map((item) => (
           <button
             key={item.id}
@@ -772,28 +755,22 @@ function Sidebar({
             className={`nav-item w-full ${currentPage === item.id ? "active" : ""}`}
           >
             <i className={`fas ${item.icon}`} />
-            {!collapsed && <span className="ml-3">{item.label}</span>}
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
 
       {/* 底部 */}
       <div className="p-6 border-t border-white/5">
-        {!collapsed ? (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <i className="fas fa-user text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">管理员</p>
-              <p className="text-xs text-gray-400">admin@insona.com</p>
-            </div>
-          </div>
-        ) : (
-          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mx-auto">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
             <i className="fas fa-user text-white" />
           </div>
-        )}
+          <div>
+            <p className="text-sm font-medium text-white">管理员</p>
+            <p className="text-xs text-gray-400">admin@insona.com</p>
+          </div>
+        </div>
       </div>
     </aside>
   );
