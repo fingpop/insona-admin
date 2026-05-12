@@ -692,7 +692,7 @@ function Sidebar({
   gatewayStatus: string;
 }) {
   const [version, setVersion] = useState("3.0");
-  const [projectName, setProjectName] = useState("博鳌论坛照明管理平台");
+  const [projectName, setProjectName] = useState("inSona商照系统");
 
   useEffect(() => {
     fetch("/api/system/version")
@@ -701,7 +701,7 @@ function Sidebar({
       .catch(() => {});
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((data) => setProjectName(data.projectName ?? "博鳌论坛照明管理平台"))
+      .then((data) => setProjectName(data.projectName ?? "inSona商照系统"))
       .catch(() => {});
   }, []);
   const navItems = [

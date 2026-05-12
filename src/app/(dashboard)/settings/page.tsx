@@ -55,6 +55,12 @@ export default function SettingsPage() {
   const [updateLogs, setUpdateLogs] = useState<string[]>([]);
   const [updateMsg, setUpdateMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
+  // Project name setting
+  const [projectName, setProjectName] = useState("inSona商照系统");
+  const [projectNameDraft, setProjectNameDraft] = useState("");
+  const [savingProjectName, setSavingProjectName] = useState(false);
+  const [projectNameMsg, setProjectNameMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
   const loadGateways = useCallback(async () => {
     try {
       const res = await fetch("/api/gateway/list");
@@ -75,6 +81,14 @@ export default function SettingsPage() {
     fetch("/api/system/version")
       .then((r) => r.json())
       .then((v) => setVersion(v))
+      .catch(() => {});
+    // Load project name
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        setProjectName(data.projectName ?? "inSona商照系统");
+        setProjectNameDraft(data.projectName ?? "inSona商照系统");
+      })
       .catch(() => {});
   }, [loadGateways]);
 
@@ -175,6 +189,27 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveProjectName = async () => {
+    if (!projectNameDraft.trim()) return;
+    setSavingProjectName(true);
+    setProjectNameMsg(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectName: projectNameDraft.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "保存失败");
+      setProjectName(data.projectName);
+      setProjectNameMsg({ type: "success", text: "项目名称已保存" });
+    } catch (err) {
+      setProjectNameMsg({ type: "error", text: err instanceof Error ? err.message : "保存失败" });
+    } finally {
+      setSavingProjectName(false);
+    }
+  };
+
   const overallStatus = gateways.some((g) => g.liveStatus === "connected")
     ? "connected"
     : gateways.some((g) => g.liveStatus === "reconnecting")
@@ -195,6 +230,42 @@ export default function SettingsPage() {
         {gateways.length > 0 && (
           <span className="text-[#4a5b70]">({gateways.length} 个网关)</span>
         )}
+      </div>
+
+      {/* Project name setting */}
+      <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-5 space-y-4">
+        <h2 className="text-sm font-medium text-white">项目名称</h2>
+        <p className="text-xs text-[#4a5b70]">
+          自定义显示在侧边栏左上角的项目名称
+        </p>
+
+        {projectNameMsg && (
+          <div className={`text-sm rounded-md px-4 py-3 ${
+            projectNameMsg.type === "success"
+              ? "bg-green-900/20 border border-green-800 text-green-400"
+              : "bg-red-900/20 border border-red-800 text-red-400"
+          }`}>
+            {projectNameMsg.text}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={projectNameDraft}
+            onChange={(e) => setProjectNameDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSaveProjectName(); }}
+            placeholder="输入项目名称"
+            className="flex-1 bg-[#0a1019] border border-[#1c2630] text-[#c0cad8] text-sm rounded-md px-3 py-2 focus:outline-none focus:border-[#137fec]"
+          />
+          <button
+            onClick={handleSaveProjectName}
+            disabled={savingProjectName || !projectNameDraft.trim()}
+            className="px-5 py-2 bg-[#137fec] hover:bg-[#0d6dd9] text-white text-sm rounded-md transition-colors disabled:opacity-40"
+          >
+            {savingProjectName ? "保存中..." : "保存"}
+          </button>
+        </div>
       </div>
 
       {/* Gateway management */}
