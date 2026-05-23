@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
+import { getLocalDateOffset } from "@/lib/utils";
 
 type DateRange = "today" | "7d" | "30d";
 
@@ -33,10 +34,10 @@ export default function DashboardPage() {
   const [recentEvents, setRecentEvents] = useState<Array<{ id: string; timestamp: string; type: string; message: string; deviceName?: string }>>([]);
 
   const { data, refetch } = useDashboardData({
-    from: dateRange === "today" ? new Date().toISOString().split("T")[0] :
-          dateRange === "7d" ? new Date(Date.now() - 6 * 86400000).toISOString().split("T")[0] :
-          new Date(Date.now() - 29 * 86400000).toISOString().split("T")[0],
-    to: new Date().toISOString().split("T")[0],
+    from: dateRange === "today" ? getLocalDateOffset(0) :
+          dateRange === "7d" ? getLocalDateOffset(-6) :
+          getLocalDateOffset(-29),
+    to: getLocalDateOffset(0),
   });
 
   // 自动刷新

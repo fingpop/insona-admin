@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isGroupDevice } from "@/lib/types";
+import { getLocalDate } from "@/lib/utils";
 
 // 碳排放系数 (中国平均电网排放因子, 2024年数据)
 const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDate();
 
   // Build device filter
   let deviceIds: string[] | undefined;
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
       return Response.json({ success: true, skipped: "group device" });
     }
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
 
     // 直接用原始 did 作为存储 ID
     const deviceId = did;

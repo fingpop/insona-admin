@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const deviceId = searchParams.get("deviceId");
     const roomId = searchParams.get("roomId");
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
 
     if (deviceId) {
       // 单设备查询：最近 1 小时明细 + 今天的小时聚合

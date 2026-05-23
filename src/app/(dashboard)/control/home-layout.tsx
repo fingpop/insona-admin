@@ -17,6 +17,7 @@ import {
   Bar,
   LabelList,
 } from "recharts";
+import { getLocalDateOffset } from "@/lib/utils";
 
 type DateRange = "today" | "7d" | "30d";
 
@@ -111,6 +112,7 @@ export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisc
   // 加载数据
   const fetchData = useCallback(async () => {
     try {
+      const energyDaysOffset = -(dateRange === "today" ? 0 : dateRange === "7d" ? 6 : 29);
       const [
         statsRes,
         carbonRes,
@@ -124,10 +126,10 @@ export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisc
       ] = await Promise.all([
         fetch("/api/dashboard/stats"),
         fetch(`/api/dashboard/carbon-emissions?range=${dateRange === "today" ? "today" : "week"}`),
-        fetch("/api/dashboard/hourly-energy?date=" + new Date().toISOString().split("T")[0]),
+        fetch("/api/dashboard/hourly-energy?date=" + getLocalDateOffset(0)),
         fetch("/api/dashboard/device-type-distribution"),
         fetch("/api/dashboard/room-energy-ranking"),
-        fetch(`/api/energy?from=${new Date(Date.now() - (dateRange === "today" ? 0 : dateRange === "7d" ? 6 : 29) * 86400000).toISOString().split("T")[0]}&to=${new Date().toISOString().split("T")[0]}`),
+        fetch(`/api/energy?from=${getLocalDateOffset(energyDaysOffset)}&to=${getLocalDateOffset(0)}`),
         fetch("/api/scenes?quick=true"),
         fetch("/api/dashboard/floor-status"),
         fetch("/api/dashboard/events?limit=10"),

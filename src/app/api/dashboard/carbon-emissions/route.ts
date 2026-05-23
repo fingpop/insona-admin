@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate, getLocalDateOffset } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,7 @@ export async function GET(request: Request) {
     const dateRange = searchParams.get("range") || "today";
 
     // 计算时间范围
-    const today = new Date();
-    const to = today.toISOString().split("T")[0];
+    const to = getLocalDate();
     let from: string;
     let label: string;
 
@@ -26,11 +26,11 @@ export async function GET(request: Request) {
         label = "今日";
         break;
       case "week":
-        from = new Date(Date.now() - 6 * 86400000).toISOString().split("T")[0];
+        from = getLocalDateOffset(-6);
         label = "近 7 天";
         break;
       case "month":
-        from = new Date(Date.now() - 29 * 86400000).toISOString().split("T")[0];
+        from = getLocalDateOffset(-29);
         label = "近 30 天";
         break;
       default:
@@ -57,14 +57,14 @@ export async function GET(request: Request) {
     let prevFrom: string;
     let prevTo: string;
     if (dateRange === "today") {
-      prevTo = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      prevTo = getLocalDateOffset(-1);
       prevFrom = prevTo;
     } else if (dateRange === "week") {
-      prevTo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-      prevFrom = new Date(Date.now() - 13 * 86400000).toISOString().split("T")[0];
+      prevTo = getLocalDateOffset(-7);
+      prevFrom = getLocalDateOffset(-13);
     } else {
-      prevTo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
-      prevFrom = new Date(Date.now() - 59 * 86400000).toISOString().split("T")[0];
+      prevTo = getLocalDateOffset(-30);
+      prevFrom = getLocalDateOffset(-59);
     }
 
     const prevEnergy = await prisma.energyRecord.aggregate({

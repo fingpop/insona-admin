@@ -30,13 +30,9 @@ interface DailyTotal {
 // 碳排放系数 (中国平均电网排放因子, 2024年数据)
 const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
 
-type DateRange = "today" | "7d" | "30d" | "custom";
+import { getLocalDateOffset } from "@/lib/utils";
 
-function getDateStr(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+type DateRange = "today" | "7d" | "30d" | "custom";
 
 export default function EnergyPage() {
   const [records, setRecords] = useState<EnergyRecord[]>([]);
@@ -44,21 +40,21 @@ export default function EnergyPage() {
   const [totals, setTotals] = useState({ kwh: 0, peakWatts: 0, carbonEmission: 0 });
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
-  const [customFrom, setCustomFrom] = useState(getDateStr(-30));
-  const [customTo, setCustomTo] = useState(getDateStr(0));
+  const [customFrom, setCustomFrom] = useState(getLocalDateOffset(-30));
+  const [customTo, setCustomTo] = useState(getLocalDateOffset(0));
   const [roomFilter, setRoomFilter] = useState("");
   const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [exporting, setExporting] = useState(false);
 
   const getDateParams = () => {
-    const to = getDateStr(0);
+    const to = getLocalDateOffset(0);
     let from: string;
     switch (dateRange) {
-      case "today": from = getDateStr(0); break;
-      case "7d": from = getDateStr(-7); break;
-      case "30d": from = getDateStr(-30); break;
+      case "today": from = getLocalDateOffset(0); break;
+      case "7d": from = getLocalDateOffset(-7); break;
+      case "30d": from = getLocalDateOffset(-30); break;
       case "custom": from = customFrom; break;
-      default: from = getDateStr(-7);
+      default: from = getLocalDateOffset(-7);
     }
     return { from, to };
   };
@@ -107,7 +103,7 @@ export default function EnergyPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `energy_${getDateStr(0)}.csv`;
+    a.download = `energy_${getLocalDateOffset(0)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setExporting(false);

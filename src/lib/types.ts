@@ -101,6 +101,8 @@ export const DEFAULT_RATED_POWER: Record<number, number> = {
 // 判断设备 ID 是否为组设备（DID 长度为 2 的十六进制 00-FF）
 export const isGroupDevice = (id: string): boolean => /^[0-9a-fA-F]{2}$/i.test(id);
 
+// ─── Device ID helpers ───
+
 // 解析存储的设备 ID（meshId:did 格式，用于组设备）
 export function parseStoredDeviceId(storedId: string): { meshId: string | null; did: string } {
   const parts = storedId.split(":");
@@ -117,6 +119,25 @@ export function buildStoredDeviceId(meshId: string | null | undefined, did: stri
     return `${meshId}:${did}`;
   }
   return did;
+}
+
+// ─── Room ID helpers (gatewayId:roomId composite, isolates rooms per gateway) ───
+
+// 组装存储用的房间 ID（gatewayId:roomId 格式）
+export function buildStoredRoomId(gatewayId: string | null | undefined, roomId: string | number): string {
+  if (gatewayId) {
+    return `${gatewayId}:${roomId}`;
+  }
+  return String(roomId);
+}
+
+// 解析存储的房间 ID（返回 gatewayId 和原始 roomId）
+export function parseStoredRoomId(storedId: string): { gatewayId: string | null; roomId: string } {
+  const parts = storedId.split(":");
+  if (parts.length === 2) {
+    return { gatewayId: parts[0], roomId: parts[1] };
+  }
+  return { gatewayId: null, roomId: storedId };
 }
 
 // Dashboard 相关类型

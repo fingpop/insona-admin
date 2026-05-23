@@ -25,7 +25,7 @@ model Gateway {
 }
 
 model Room {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) // room id (or "meshId:roomId" for mesh-scoped rooms)
   name      String
   type      String   @default("room") // "building" | "floor" | "room"
   parentId  String?

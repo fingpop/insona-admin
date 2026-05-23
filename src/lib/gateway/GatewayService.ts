@@ -1,7 +1,8 @@
 import net from "net";
 import { Prisma } from "@prisma/client";
-import { InSonaRequest, InSonaResponse, isGroupDevice, buildStoredDeviceId } from "@/lib/types";
+import { InSonaRequest, InSonaResponse, isGroupDevice, buildStoredDeviceId, buildStoredRoomId } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate } from "@/lib/utils";
 import { logEnergyEvent } from "./EnergyLogger";
 
 type SSEConsumer = (data: string) => void;
@@ -380,16 +381,19 @@ class GatewayService {
 
     // 保存设备数据到数据库
     if (result && typeof result === "object" && "devices" in result) {
-      // 先同步房间数据（确保 roomId 外键约束有效）
+      const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
+
+      // 先同步房间数据（用 gatewayId:roomId 隔离不同网关的房间）
       if ("rooms" in result && Array.isArray(result.rooms)) {
         const gatewayRooms = (result as unknown as { rooms: Array<{ roomId: number; name: string }> }).rooms;
         for (const room of gatewayRooms) {
           try {
+            const storedRoomId = buildStoredRoomId(this.gatewayId, room.roomId);
             await prisma.room.upsert({
-              where: { id: String(room.roomId) },
+              where: { id: storedRoomId },
               update: { name: room.name },
               create: {
-                id: String(room.roomId),
+                id: storedRoomId,
                 name: room.name,
                 type: this.inferRoomType(room.name),
               },
@@ -400,8 +404,6 @@ class GatewayService {
         }
       }
 
-      const gatewayDevices = (result as unknown as { devices: Array<Record<string, unknown>> }).devices;
-
       let saveSuccess = 0;
       let saveFail = 0;
 
@@ -411,14 +413,14 @@ class GatewayService {
         const ver = String(dev.ver ?? "");
         const type = Number(dev.type);
         const name = String(dev.name || `设备${did.slice(-6)}`);
-        const meshId = dev.meshid ? String(dev.meshid) : undefined;
+        const devMeshId = dev.meshid ? String(dev.meshid) : undefined;
         const func = Number(dev.func || 0);
         const alive = Number(dev.alive ?? 1);
         const value = dev.value !== undefined ? JSON.stringify(dev.value) : "[]";
         const funcs = dev.funcs ? JSON.stringify(dev.funcs) : "[]";
         const groups = dev.groups ? JSON.stringify(dev.groups) : "[]";
 
-        // 从 groups 或网关 roomId 提取房间 ID（仅在创建新设备时设置）
+        // 从 groups 或网关 roomId 提取房间 ID（用 gatewayId:roomId 隔离）
         let roomId: string | undefined = undefined;
 
         // 优先从 groups 提取
@@ -426,13 +428,13 @@ class GatewayService {
           // groups 格式：[0, room_id]
           const groupId = dev.groups[1];
           if (groupId && groupId !== 0) {
-            roomId = String(groupId);
+            roomId = buildStoredRoomId(this.gatewayId, groupId);
           }
         }
 
         // 如果 groups 为空或无效，使用网关返回的 roomId
-        if (!roomId && dev.roomId) {
-          roomId = String(dev.roomId);
+        if (!roomId && dev.roomId != null) {
+          roomId = buildStoredRoomId(this.gatewayId, dev.roomId as string | number);
         }
 
         // 校验 roomId 是否存在，避免外键约束错误
@@ -445,7 +447,7 @@ class GatewayService {
         }
 
         // 组设备使用复合 ID（meshId:did），确保同 DID 在不同 mesh 下各自独立存储
-        const storedId = isGroupDevice(did) ? buildStoredDeviceId(meshId, did) : did;
+        const storedId = isGroupDevice(did) ? buildStoredDeviceId(devMeshId, did) : did;
         const originalDidValue = isGroupDevice(did) ? did : undefined;
 
         try {
@@ -458,7 +460,7 @@ class GatewayService {
                 where: { id: existingPlain.id },
                 data: {
                   id: storedId,
-                  pid, ver, type, meshId, func, alive,
+                  pid, ver, type, meshId: devMeshId, func, alive,
                   value, funcs, groups, gatewayName: name,
                   originalDid: originalDidValue,
                 },
@@ -469,12 +471,12 @@ class GatewayService {
               await prisma.device.upsert({
                 where: { id: storedId },
                 update: {
-                  pid, ver, type, meshId, func, alive,
+                  pid, ver, type, meshId: devMeshId, func, alive,
                   value, funcs, groups, gatewayName: name,
                   originalDid: originalDidValue,
                 },
                 create: {
-                  id: storedId, pid, ver, type, name, meshId,
+                  id: storedId, pid, ver, type, name, meshId: devMeshId,
                   func, alive, value, funcs, groups, gatewayName: name,
                   ratedPower: 10.0, roomId,
                   originalDid: originalDidValue,
@@ -488,11 +490,11 @@ class GatewayService {
             await prisma.device.upsert({
               where: { id: did },
               update: {
-                pid, ver, type, meshId, func, alive,
+                pid, ver, type, meshId: devMeshId, func, alive,
                 value, funcs, groups, gatewayName: name,
               },
               create: {
-                id: did, pid, ver, type, name, meshId,
+                id: did, pid, ver, type, name, meshId: devMeshId,
                 func, alive, value, funcs, groups, gatewayName: name,
                 ratedPower: 10.0, roomId,
                 ...(validGatewayId ? { gatewayId: validGatewayId } : {}),
@@ -806,7 +808,7 @@ class GatewayService {
       debug(`[ENERGY] Processing ${energy.length / 2} data points for device ${did}`);
 
       const now = new Date();
-      const today = now.toISOString().split("T")[0];
+      const today = getLocalDate();
       const currentHour = now.getHours();
 
       const dataPoints: Array<{

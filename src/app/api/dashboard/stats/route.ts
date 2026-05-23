@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate, getLocalDateOffset } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ export async function GET() {
     const onlineRate = totalDevices > 0 ? onlineDevices / totalDevices : 0;
 
     // 今日能耗
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
     const todayEnergy = await prisma.energyRecord.aggregate({
       _sum: { kwh: true },
       _max: { peakWatts: true },
@@ -21,15 +22,15 @@ export async function GET() {
     });
 
     // 昨日能耗（环比计算）
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const yesterday = getLocalDateOffset(-1);
     const yesterdayEnergy = await prisma.energyRecord.aggregate({
       _sum: { kwh: true },
       where: { date: yesterday },
     });
 
     // 上周同期（7天前）
-    const lastWeekStart = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-    const lastWeekEnd = new Date(Date.now() - 6 * 86400000).toISOString().split("T")[0];
+    const lastWeekStart = getLocalDateOffset(-7);
+    const lastWeekEnd = getLocalDateOffset(-6);
     const lastWeekEnergy = await prisma.energyRecord.aggregate({
       _sum: { kwh: true },
       where: {

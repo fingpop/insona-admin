@@ -13,6 +13,7 @@
 - [ ] **Phase 6: 视觉一致性优化与数据同步** — 表格/按钮/弹窗样式统一，控制后自动刷新 (VISUAL-01 through VISUAL-06, SYNC-01, SYNC-02)
 - [x] **Phase 7: 多网关架构** — 支持 10-20 个网关同时连接，设置页网关管理 UI，设备自动关联 (MG-01 through MG-07)
 - [ ] **Phase 8: 面板场景联动** — 面板按键事件绑定场景，接收按键协议自动执行场景 (PSL-01 through PSL-05)
+- [x] **Phase 9: 项目名称设置** — 系统设置中新增项目名称配置，侧边栏动态显示 (PN-01, PN-02)
 
 ## Phase Details
 
@@ -99,6 +100,21 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 9: 项目名称设置
+**Goal:** 系统设置中新增"项目名称"配置项，用户输入的名称动态显示在侧边栏左上角
+**Depends on:** None
+**Requirements:** PN-01 (数据库+API), PN-02 (设置页UI+侧边栏联动)
+**Success Criteria** (what must be TRUE):
+  1. 系统设置页新增"项目名称"输入区域，可编辑保存
+  2. 保存后侧边栏即时显示新名称，刷新后仍保留
+  3. SystemSetting 模型存储键值对，默认值"博鳌论坛照明管理平台"
+**Plans:** 1 plan
+
+Plans:
+- [x] 09-01-PLAN.md — SystemSetting 模型 + /api/settings + 设置页 UI + 侧边栏联动
+
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -106,6 +122,7 @@ Plans:
 | 4. 控制面板基础架构 | 0/1 | Planned | - |
 | 5. 控制面板控制组件 | 0/1 | Planned | - |
 | 6. 视觉一致性优化与数据同步 | 0/0 | Not started | - |
+| 9. 项目名称设置 | 1/1 | Planned | - |
 
 ## Coverage Map
 

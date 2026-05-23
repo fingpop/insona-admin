@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -7,7 +8,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+    const date = searchParams.get("date") || getLocalDate();
 
     // 按小时聚合所有设备的能耗数据
     const hourlyAgg = await prisma.energyHourly.groupBy({

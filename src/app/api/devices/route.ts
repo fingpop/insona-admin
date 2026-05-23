@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_RATED_POWER, isGroupDevice } from "@/lib/types";
+import { getLocalDate } from "@/lib/utils";
 import { InSonaDevice } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDate();
   const energyRecords = await prisma.energyRecord.findMany({
     where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
   });
@@ -106,7 +107,7 @@ export async function POST() {
       orderBy: { name: "asc" },
     });
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDate();
     const energyRecords = await prisma.energyRecord.findMany({
       where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
     });

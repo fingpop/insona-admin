@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         const roomType = inferRoomType(room.name);
         const createdRoom = await prisma.room.create({
           data: {
-            id: String(room.roomId), // 直接使用数字ID
+            id: String(room.roomId),
             name: room.name,
             type: roomType,
           }
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
               value: JSON.stringify(device.value),
               groups: groupsJson, // 更新groups
               meshId: device.meshid || null,
-              roomId: device.roomId ? String(device.roomId) : null, // 使用数字ID
+              roomId: device.roomId ? String(device.roomId) : null,
             }
           });
           devicesResult.push({
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
               value: JSON.stringify(device.value),
               groups: groupsJson, // 设置groups
               meshId: device.meshid || null,
-              roomId: device.roomId ? String(device.roomId) : null, // 使用数字ID
+              roomId: device.roomId ? String(device.roomId) : null,
               ratedPower: inferRatedPower(device.type),
             }
           });

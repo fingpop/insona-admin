@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
 import { InSonaDevice, DEVICE_TYPE_LABELS, FUNC_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
+import { getLocalDateOffset } from "@/lib/utils";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
 import HomeLayout from "./home-layout";
 
@@ -917,8 +918,8 @@ function DashboardPage({
   // 获取真实能耗数据
   useEffect(() => {
     const fetchEnergyData = async () => {
-      const to = new Date().toISOString().split("T")[0];
-      const from = new Date(Date.now() - energyPeriod * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const to = getLocalDateOffset(0);
+      const from = getLocalDateOffset(-energyPeriod);
       try {
         const res = await fetch(`/api/energy?from=${from}&to=${to}`);
         const data = await res.json();
@@ -3979,8 +3980,8 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
 
   // 获取查询日期范围
   const getDateRange = () => {
-    const to = new Date().toISOString().split("T")[0];
-    const from = new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const to = getLocalDateOffset(0);
+    const from = getLocalDateOffset(-period);
     return { from, to };
   };
 

@@ -1,35 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: milestone
-status: milestone_complete
-last_updated: "2026-04-28T08:50:43.815Z"
+milestone: v1.2
+milestone_name: 项目名称设置
+status: complete
+last_updated: "2026-05-08T00:00:00.000Z"
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 4
-  completed_plans: 4
-  percent: 80
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 100
 ---
 
-# STATE.md — 商照管理后台 组设备控制优化
+# STATE.md — 商照管理后台
 
 ## Project Reference
 
-**Core Value:** 程序能够在 Linux 服务器上以生产模式稳定运行，自动管理网关连接并持久化数据
+**Core Value:** 用户可自定义项目名称，显示在侧边栏左上角
 
-**Current Focus:** Phase --phase — 08
+**Current Focus:** Phase 9 — 项目名称设置 (Complete)
 
 ## Current Position
 
-Phase: 08
-Plan: Not started
+Phase: 09
+Plan: Complete
+
 | Item | Value |
 |------|-------|
-| Milestone | 组设备控制优化 v1.1 |
-| Phase | Complete (3 phases) |
-| Plan | 6/6 complete |
-| Status | v1.1 shipped |
+| Milestone | v1.2 项目名称设置 |
+| Phase | Complete |
+| Plan | 1/1 complete |
+| Status | v1.2 shipped |
 | Progress | 100% |
 
 ## Accumulated Context
@@ -47,6 +48,9 @@ Plan: Not started
 - 组设备控制采用抽屉式面板（与设备管理 TAB 保持一致）
 - 组设备控制即时响应（消除二次确认）
 - v1.1 分为 3 个阶段：基础架构 -> 控制组件 -> 视觉统一+数据同步
+- 侧边栏仅存在于 `control/page.tsx`，项目名称硬编码在 741 行
+- 其他 dashboard 页面无侧边栏组件
+- SystemSetting 模型用于键值对配置存储
 
 ### Completed (v1.0)
 
@@ -60,10 +64,16 @@ Plan: Not started
 - [x] Phase 5: 控制面板控制组件 (PANEL-03, PANEL-04, PANEL-05, PANEL-06)
 - [x] Phase 6: 视觉一致性优化与数据同步 (VISUAL-01..06, SYNC-01, SYNC-02)
 
+### Completed (v1.1+)
+
+- [x] Phase 7: 多网关架构
+- [x] Phase 8: 面板场景联动
+- [x] Phase 9: 项目名称设置 (PN-01, PN-02)
+
 ## Session Continuity
 
-**Last Session:** 2026-04-16
-**Next Step:** v1.2 planning (if needed)
+**Last Session:** 2026-05-08
+**Next Step:** No further work planned
 
 ---
-*State updated: 2026-04-16 — v1.1 complete*
+*State updated: 2026-05-08 — Phase 9 complete*

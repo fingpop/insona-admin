@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate, getLocalDateOffset } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -7,8 +8,8 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const from = searchParams.get("from") || new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
-    const to = searchParams.get("to") || new Date().toISOString().split("T")[0];
+    const from = searchParams.get("from") || getLocalDateOffset(-7);
+    const to = searchParams.get("to") || getLocalDate();
     const limit = parseInt(searchParams.get("limit") || "10");
 
     // 获取所有房间及其设备的能耗数据

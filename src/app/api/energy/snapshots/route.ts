@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const dateStr = getLocalDate(); // YYYY-MM-DD
 
     // Write snapshot
     await prisma.energySnapshot.create({

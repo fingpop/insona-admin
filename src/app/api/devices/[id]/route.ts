@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getLocalDate } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   }
 
   // 获取今日能耗数据
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDate();
   const energyRecord = await prisma.energyRecord.findUnique({
     where: { deviceId_date: { deviceId: id, date: today } },
   });
