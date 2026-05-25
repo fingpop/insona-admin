@@ -4,7 +4,7 @@ import { getLocalDate, getLocalDateOffset } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
-// 获取房间能耗排行 Top 10
+// 获取房间能耗排行 Top 10（优化：仅查询需要的字段，避免加载完整嵌套对象）
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -12,50 +12,51 @@ export async function GET(request: Request) {
     const to = searchParams.get("to") || getLocalDate();
     const limit = parseInt(searchParams.get("limit") || "10");
 
-    // 获取所有房间及其设备的能耗数据
-    const rooms = await prisma.room.findMany({
-      where: { type: "room" }, // 只查询房间层级
-      include: {
-        devices: {
-          include: {
-            energyRecords: {
-              where: {
-                date: {
-                  gte: from,
-                  lte: to,
-                },
-              },
+    // 直接查询能耗记录，按房间聚合（避免加载完整的 rooms->devices->records 嵌套结构）
+    const energyRecords = await prisma.energyRecord.findMany({
+      where: {
+        date: { gte: from, lte: to },
+        device: { room: { type: "room" } },
+      },
+      select: {
+        kwh: true,
+        peakWatts: true,
+        device: {
+          select: {
+            roomId: true,
+            room: {
+              select: { id: true, name: true },
             },
           },
         },
       },
     });
 
-    // 计算每个房间的总能耗
-    const ranking = rooms
-      .map((room) => {
-        const totalKwh = room.devices.reduce(
-          (sum, device) => sum + device.energyRecords.reduce((s, r) => s + r.kwh, 0),
-          0
-        );
+    // 按房间聚合能耗
+    const roomMap = new Map<string, { roomName: string; kwh: number; peakWatts: number }>();
+    for (const record of energyRecords) {
+      const roomId = record.device.roomId;
+      if (!roomId || !record.device.room) continue;
 
-        const peakWatts = room.devices.reduce(
-          (max, device) =>
-            Math.max(max, device.energyRecords.reduce((m, r) => Math.max(m, r.peakWatts), 0)),
-          0
-        );
+      const existing = roomMap.get(roomId);
+      if (existing) {
+        existing.kwh += record.kwh;
+        existing.peakWatts = Math.max(existing.peakWatts, record.peakWatts);
+      } else {
+        roomMap.set(roomId, {
+          roomName: record.device.room.name,
+          kwh: record.kwh,
+          peakWatts: record.peakWatts,
+        });
+      }
+    }
 
-        return {
-          roomId: room.id,
-          roomName: room.name,
-          kwh: totalKwh,
-          peakWatts,
-          deviceCount: room.devices.length,
-        };
-      })
-      .filter((r) => r.kwh > 0) // 只返回有能耗数据的房间
-      .sort((a, b) => b.kwh - a.kwh) // 按能耗降序排序
-      .slice(0, limit); // 取前 N 个
+    // 排序并取前 N 个
+    const ranking = Array.from(roomMap.entries())
+      .map(([roomId, data]) => ({ roomId, ...data }))
+      .filter((r) => r.kwh > 0)
+      .sort((a, b) => b.kwh - a.kwh)
+      .slice(0, limit);
 
     return Response.json({
       ranking,

@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const roomId = searchParams.get("roomId");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const summaryOnly = searchParams.get("summaryOnly") === "true";
 
   const today = getLocalDate();
 
@@ -37,6 +38,28 @@ export async function GET(request: Request) {
     if (to) (where.date as Record<string, string>).lte = to;
   }
 
+  // Daily totals - 从 EnergyRecord 汇总
+  const dailyData = await prisma.energyRecord.groupBy({
+    by: ["date"],
+    _sum: { kwh: true },
+    where,
+    orderBy: { date: "asc" },
+  });
+
+  const dailyTotals = dailyData.map((d) => ({
+    date: d.date,
+    _sum: { kwh: d._sum.kwh },
+  }));
+
+  // 仪表盘等场景只需要汇总数据，跳过全量记录查询
+  if (summaryOnly) {
+    const totals = dailyData.reduce(
+      (acc, d) => ({ kwh: acc.kwh + (d._sum.kwh ?? 0) }),
+      { kwh: 0 }
+    );
+    return Response.json({ records: [], totals: { ...totals, peakWatts: 0, carbonEmission: totals.kwh * CARBON_EMISSION_FACTOR }, dailyTotals });
+  }
+
   // 从 EnergyRecord 查询日汇总数据（包含历史数据）
   const records = await prisma.energyRecord.findMany({
     where,
@@ -57,19 +80,6 @@ export async function GET(request: Request) {
     }),
     { kwh: 0, peakWatts: 0, carbonEmission: 0 }
   );
-
-  // Daily totals - 从 EnergyRecord 汇总（而非 EnergyData）
-  const dailyData = await prisma.energyRecord.groupBy({
-    by: ["date"],
-    _sum: { kwh: true },
-    where,
-    orderBy: { date: "asc" },
-  });
-
-  const dailyTotals = dailyData.map((d) => ({
-    date: d.date,
-    _sum: { kwh: d._sum.kwh },
-  }));
 
   return Response.json({ records, totals, dailyTotals });
 }

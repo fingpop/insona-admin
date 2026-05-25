@@ -8,5 +8,9 @@
 import { multiGatewayService } from "./MultiGatewayService";
 
 export async function tryConnectGateway(): Promise<void> {
-  await multiGatewayService.loadAndConnectAll();
+  try {
+    await multiGatewayService.loadAndConnectAll();
+  } catch (err) {
+    console.error("Auto-connect failed:", err);
+  }
 }

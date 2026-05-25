@@ -6,11 +6,26 @@
 
 import { runSchedulerTick } from './SchedulerCore';
 import { multiGatewayService } from '@/lib/gateway/MultiGatewayService';
+import { prisma } from '@/lib/prisma';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let deviceAliveRefreshInterval: NodeJS.Timeout | null = null;
 
 const DEVICE_ALIVE_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const EVENT_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
+const EVENT_RETENTION_DAYS = 7; // Keep events for 7 days
+
+let eventCleanupInterval: NodeJS.Timeout | null = null;
+
+async function cleanupOldEvents() {
+  const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const result = await prisma.dashboardEvent.deleteMany({
+    where: { timestamp: { lt: cutoff } },
+  });
+  if (result.count > 0) {
+    console.log(`[EventCleanup] Deleted ${result.count} events older than ${EVENT_RETENTION_DAYS} days`);
+  }
+}
 
 async function refreshDeviceAliveForAllGateways() {
   const gateways = multiGatewayService.getConnectedGateways();
@@ -72,6 +87,22 @@ export function startScheduler() {
   }, 30_000);
 
   console.log(`[DeviceAlive] 状态刷新已启动，每 ${DEVICE_ALIVE_REFRESH_INTERVAL / 1000} 秒执行一次`);
+
+  // 启动旧事件清理（每小时检查一次，删除 7 天前的事件）
+  eventCleanupInterval = setInterval(async () => {
+    try {
+      await cleanupOldEvents();
+    } catch (err) {
+      console.error('[EventCleanup] 定时清理失败:', err);
+    }
+  }, EVENT_CLEANUP_INTERVAL);
+
+  // 启动时立即执行一次清理
+  cleanupOldEvents().catch((err) => {
+    console.error('[EventCleanup] 初始清理失败:', err);
+  });
+
+  console.log(`[EventCleanup] 事件清理已启动，每 ${EVENT_CLEANUP_INTERVAL / 60000} 分钟执行一次，保留 ${EVENT_RETENTION_DAYS} 天`);
 }
 
 export function stopScheduler() {
@@ -84,5 +115,10 @@ export function stopScheduler() {
     clearInterval(deviceAliveRefreshInterval);
     deviceAliveRefreshInterval = null;
     console.log('[DeviceAlive] 状态刷新已停止');
+  }
+  if (eventCleanupInterval) {
+    clearInterval(eventCleanupInterval);
+    eventCleanupInterval = null;
+    console.log('[EventCleanup] 事件清理已停止');
   }
 }

@@ -166,6 +166,11 @@ class GatewayService {
         const hex = chunk.toString("hex");
         const utf8 = chunk.toString("utf8");
         traceRaw(`[RECV] hex=${hex} str=${JSON.stringify(utf8)}`);
+        // 防止 buffer 无限增长导致 OOM（上限 1MB）
+        if (this.buffer.length > 1_048_576) {
+          debug(`Buffer overflow (${this.buffer.length} bytes), resetting`);
+          this.buffer = "";
+        }
         this.buffer += utf8;
         this._drainBuffer();
       });
