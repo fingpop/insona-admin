@@ -5,7 +5,6 @@ import { parseStoredDeviceId } from "@/lib/types";
 
 declare global {
   var __schedulerLastTick: number | undefined;
-  var __schedulerLock: boolean | undefined;
 }
 if (typeof globalThis.__schedulerLastTick === "undefined") {
   globalThis.__schedulerLastTick = 0;

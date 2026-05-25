@@ -96,7 +96,6 @@ interface HomeLayoutProps {
 
 export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisconnect, currentLang, onLangChange }: HomeLayoutProps) {
   const [dateRange, setDateRange] = useState<DateRange>("7d");
-  const [autoRefresh, setAutoRefresh] = useState(0);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [roomStatuses, setRoomStatuses] = useState<RoomStatus[]>([]);
   const [recentEvents, setRecentEvents] = useState<DashboardEvent[]>([]);
@@ -129,7 +128,7 @@ export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisc
         fetch("/api/dashboard/hourly-energy?date=" + getLocalDateOffset(0)),
         fetch("/api/dashboard/device-type-distribution"),
         fetch("/api/dashboard/room-energy-ranking"),
-        fetch(`/api/energy?from=${getLocalDateOffset(energyDaysOffset)}&to=${getLocalDateOffset(0)}`),
+        fetch(`/api/energy?from=${getLocalDateOffset(energyDaysOffset)}&to=${getLocalDateOffset(0)}&summaryOnly=true`),
         fetch("/api/scenes?quick=true"),
         fetch("/api/dashboard/floor-status"),
         fetch("/api/dashboard/events?limit=10"),
@@ -200,13 +199,6 @@ export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisc
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // 自动刷新
-  useEffect(() => {
-    if (autoRefresh <= 0) return;
-    const timer = setInterval(fetchData, autoRefresh * 1000);
-    return () => clearInterval(timer);
-  }, [autoRefresh, fetchData]);
 
   // 激活场景
   const activateScene = async (scene: Scene) => {

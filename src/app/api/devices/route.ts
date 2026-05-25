@@ -1,28 +1,58 @@
-import { NextResponse } from "next/server";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_RATED_POWER, isGroupDevice } from "@/lib/types";
 import { getLocalDate } from "@/lib/utils";
-import { InSonaDevice } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-/**
- * Derive the best device func from the funcs array.
- * Priority: HSL(5) > dual-temp(4) > dimming(3) > onoff(2)
- * Falls back to the raw func value if funcs is empty.
- */
-function deriveFunc(rawFunc: number, funcs: number[]): number {
-  if (!funcs || funcs.length === 0) return rawFunc;
-  if (rawFunc > 0 && funcs.length > 0) {
-    if (!funcs.includes(rawFunc)) return funcs[0];
-    return rawFunc;
+function parseJsonArray(value: string | null): number[] {
+  try { return JSON.parse(value ?? "[]") as number[]; } catch { return []; }
+}
+
+function enrichDevices(devices: { id: string; funcs: string | null; groups: string | null }[], includeEnergy = false) {
+  if (!includeEnergy) {
+    return devices.map((d) => ({
+      ...d,
+      funcs: parseJsonArray(d.funcs),
+      groups: parseJsonArray(d.groups),
+      power: null,
+      todayKwh: null,
+    }));
   }
-  if (funcs.includes(5)) return 5;
-  if (funcs.includes(4)) return 4;
-  if (funcs.includes(3)) return 3;
-  if (funcs.includes(2)) return 2;
-  return funcs[0];
+
+  const today = getLocalDate();
+  const energyRecords = prisma.energyRecord.findMany({
+    where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
+  });
+
+  const recentEnergyData = prisma.energyData.findMany({
+    where: {
+      timestamp: { gte: new Date(Date.now() - 3600000) },
+      deviceId: { in: devices.map((d) => d.id) }
+    },
+    orderBy: { sequence: "desc" },
+  });
+
+  return Promise.all([energyRecords, recentEnergyData]).then(([records, data]) => {
+    const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
+    for (const record of records) {
+      energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
+    }
+    for (const d of data) {
+      const existing = energyMap.get(d.deviceId);
+      if (existing) {
+        existing.latestPower = d.power;
+      } else {
+        energyMap.set(d.deviceId, { totalKwh: 0, latestPower: d.power });
+      }
+    }
+    return devices.map((d) => ({
+      ...d,
+      funcs: parseJsonArray(d.funcs),
+      groups: parseJsonArray(d.groups),
+      power: energyMap.get(d.id)?.latestPower ?? null,
+      todayKwh: energyMap.get(d.id)?.totalKwh ?? null,
+    }));
+  });
 }
 
 export async function GET(request: Request) {
@@ -30,6 +60,7 @@ export async function GET(request: Request) {
   const roomId = searchParams.get("roomId");
   const type = searchParams.get("type");
   const alive = searchParams.get("alive");
+  const noEnergy = searchParams.get("noEnergy") === "true";
 
   const where: Record<string, unknown> = {};
   if (roomId) where.roomId = roomId;
@@ -42,45 +73,20 @@ export async function GET(request: Request) {
     orderBy: { name: "asc" },
   });
 
-  const today = getLocalDate();
-  const energyRecords = await prisma.energyRecord.findMany({
-    where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
-  });
-
-  const recentEnergyData = await prisma.energyData.findMany({
-    where: {
-      timestamp: { gte: new Date(Date.now() - 3600000) },
-      deviceId: { in: devices.map((d) => d.id) }
-    },
-    orderBy: { sequence: "desc" },
-  });
-
-  const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
-  for (const record of energyRecords) {
-    energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
-  }
-
-  for (const data of recentEnergyData) {
-    const existing = energyMap.get(data.deviceId);
-    if (existing) {
-      existing.latestPower = data.power;
-    } else {
-      energyMap.set(data.deviceId, { totalKwh: 0, latestPower: data.power });
-    }
-  }
-
-  const devicesWithEnergy = devices.map((d) => {
-    const energy = energyMap.get(d.id);
-    return {
+  // 空间管理/场景/自动化等 Tab 不需要能耗数据，跳过 2 次额外查询
+  if (noEnergy) {
+    const devicesParsed = devices.map((d) => ({
       ...d,
-      funcs: (() => { try { return JSON.parse(d.funcs) as number[]; } catch { return []; } })(),
-      groups: (() => { try { return JSON.parse(d.groups) as number[]; } catch { return []; } })(),
-      power: energy?.latestPower ?? null,
-      todayKwh: energy?.totalKwh ?? null,
-    };
-  });
+      funcs: parseJsonArray(d.funcs),
+      groups: parseJsonArray(d.groups),
+      power: null,
+      todayKwh: null,
+    }));
+    return Response.json({ devices: devicesParsed });
+  }
 
-  return Response.json({ devices: devicesWithEnergy });
+  const enriched = await enrichDevices(devices, true);
+  return Response.json({ devices: enriched });
 }
 
 // POST /api/devices — trigger full sync from ALL connected gateways
@@ -107,43 +113,8 @@ export async function POST() {
       orderBy: { name: "asc" },
     });
 
-    const today = getLocalDate();
-    const energyRecords = await prisma.energyRecord.findMany({
-      where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
-    });
-
-    const recentEnergyData = await prisma.energyData.findMany({
-      where: {
-        timestamp: { gte: new Date(Date.now() - 3600000) },
-        deviceId: { in: devices.map((d) => d.id) }
-      },
-      orderBy: { sequence: "desc" },
-    });
-
-    const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
-    for (const record of energyRecords) {
-      energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
-    }
-    for (const data of recentEnergyData) {
-      const existing = energyMap.get(data.deviceId);
-      if (existing) {
-        existing.latestPower = data.power;
-      } else {
-        energyMap.set(data.deviceId, { totalKwh: 0, latestPower: data.power });
-      }
-    }
-
-    const devicesWithEnergy = devices.map((d) => {
-      const energy = energyMap.get(d.id);
-      return {
-        ...d,
-        funcs: (() => { try { return JSON.parse(d.funcs) as number[]; } catch { return []; } })(),
-        power: energy?.latestPower ?? null,
-        todayKwh: energy?.totalKwh ?? null,
-      };
-    });
-
-    return Response.json({ result: "ok", count: devicesWithEnergy.length, devices: devicesWithEnergy });
+    const enriched = await enrichDevices(devices, true);
+    return Response.json({ result: "ok", count: enriched.length, devices: enriched });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Sync failed";
     return Response.json({ error: message }, { status: 500 });

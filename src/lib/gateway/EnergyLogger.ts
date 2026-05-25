@@ -5,11 +5,7 @@ const DEFAULT_LOG_PATH = path.join(process.cwd(), 'data', 'logs', 'energy.log')
 const LOG_PATH = process.env.LOG_PATH || DEFAULT_LOG_PATH
 const LOG_DIR = path.dirname(LOG_PATH)
 
-// Ensure log directory exists (runs once on module import)
-try {
-  fs.mkdirSync(LOG_DIR, { recursive: true })
-} catch {
-}
+let dirInitialized = false;
 
 /**
  * Append one energy event to the log file in JSON-lines format.
@@ -17,6 +13,16 @@ try {
  * On write failure, logs to console.error instead of throwing.
  */
 export function logEnergyEvent(msg: Record<string, unknown>): void {
+  // Lazy-init: only create log dir on first actual write
+  if (!dirInitialized) {
+    try {
+      fs.mkdirSync(LOG_DIR, { recursive: true })
+    } catch {
+      // Will fail on write below if truly unwritable
+    }
+    dirInitialized = true;
+  }
+
   const entry = {
     timestamp: new Date().toISOString(),
     deviceId: msg.did,
@@ -30,7 +36,6 @@ export function logEnergyEvent(msg: Record<string, unknown>): void {
   const line = JSON.stringify(entry) + '\n'
 
   try {
-    fs.mkdirSync(LOG_DIR, { recursive: true })
     fs.appendFileSync(LOG_PATH, line, 'utf8')
   } catch (err) {
     console.error('[EnergyLogger] Write failed:', err)

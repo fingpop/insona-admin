@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 
 export const runtime = "nodejs";

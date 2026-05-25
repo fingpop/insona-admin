@@ -1,12 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
-import { InSonaDevice, DEVICE_TYPE_LABELS, FUNC_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
+import { InSonaDevice, DEVICE_TYPE_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
 import { getLocalDateOffset } from "@/lib/utils";
-import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from "recharts";
 import HomeLayout from "./home-layout";
+
+// 动态导入能耗图表组件（Recharts 仅在能耗分析 Tab 使用）
+const EnergyChart = dynamic(
+  () => import("./energy-charts").then(mod => mod.EnergyChart),
+  { ssr: false }
+);
+const EnergyBarChart = dynamic(
+  () => import("./energy-charts").then(mod => mod.EnergyBarChart),
+  { ssr: false }
+);
+const TodayEnergyHourlyChart = dynamic(
+  () => import("./energy-charts").then(mod => mod.TodayEnergyHourlyChart),
+  { ssr: false }
+);
+const TodayEnergyRoomChart = dynamic(
+  () => import("./energy-charts").then(mod => mod.TodayEnergyRoomChart),
+  { ssr: false }
+);
 
 // 动态导入组设备页面（避免打包问题）
 const GroupsPage = dynamic(() => import("@/app/(dashboard)/groups/page"), {
@@ -159,12 +176,6 @@ interface Automation {
   enabled: boolean;
 }
 
-interface EnergyData {
-  date: string;
-  value: number;
-  carbonEmission?: number;
-}
-
 /**
  * 解析网关返回的设备状态值
  * 根据 func 类型解析 value 数组：
@@ -226,14 +237,19 @@ export default function ControlPanel() {
   const [currentLang, setCurrentLang] = useState("zh-CN");
 
   // 当 devices 列表更新时，同步 selectedDevice 的最新状态
+  // Use ref to avoid re-triggering on selectedDevice changes
+  const selectedDeviceRef = useRef(selectedDevice);
   useEffect(() => {
-    if (selectedDevice && drawerOpen) {
-      const updated = devices.find((d) => d.did === selectedDevice.did);
-      if (updated && updated !== selectedDevice) {
-        setSelectedDevice(updated);
-      }
+    selectedDeviceRef.current = selectedDevice;
+  }, [selectedDevice]);
+
+  useEffect(() => {
+    if (!selectedDeviceRef.current || !drawerOpen) return;
+    const updated = devices.find((d) => d.did === selectedDeviceRef.current!.did);
+    if (updated && updated !== selectedDeviceRef.current) {
+      setSelectedDevice(updated);
     }
-  }, [devices, drawerOpen, selectedDevice]);
+  }, [devices, drawerOpen]); // Removed selectedDevice from deps to prevent render cascades
 
   // SSE 事件监听
   const { subscribe } = useGatewayEvents();
@@ -384,8 +400,38 @@ export default function ControlPanel() {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. 获取网关配置
-        const gateways = await refreshGatewayStatus();
+        // 并行加载：网关状态 + 设备数据 + 今日能耗
+        const [gateways] = await Promise.all([
+          refreshGatewayStatus(),
+          queryDevices(),
+          (async () => {
+            try {
+              const todayEnergyRes = await fetch("/api/energy/today");
+              const todayEnergyData = await todayEnergyRes.json();
+              if (todayEnergyData.deviceStats) {
+                const energyMap = new Map<string, { todayKwh: number; power: number }>(
+                  todayEnergyData.deviceStats.map((stat: {
+                    deviceId: string;
+                    totalKwh: number;
+                    latestPower: number;
+                  }) => [stat.deviceId, { todayKwh: stat.totalKwh, power: stat.latestPower }])
+                );
+                setDevices((prev) =>
+                  prev.map((d) => {
+                    const energyInfo = energyMap.get(d.did);
+                    return {
+                      ...d,
+                      todayKwh: energyInfo?.todayKwh ?? d.todayKwh,
+                      power: energyInfo?.power ?? d.power,
+                    };
+                  })
+                );
+              }
+            } catch (err) {
+              console.error("加载能耗数据失败:", err);
+            }
+          })(),
+        ]);
 
         // 设置第一个网关的 IP（用于手动连接）
         const firstGw = gateways.find((g: { ip: string }) => g.ip);
@@ -393,41 +439,7 @@ export default function ControlPanel() {
           setGatewayIP(firstGw.ip);
         }
 
-        // 2. 加载设备和空间数据（即使未连接也显示本地数据）
-        await queryDevices();
-
-        // 3. 加载今日能耗和功率数据
-        try {
-          const todayEnergyRes = await fetch("/api/energy/today");
-          const todayEnergyData = await todayEnergyRes.json();
-
-          if (todayEnergyData.deviceStats) {
-            // 创建功率和能耗的映射
-            const energyMap = new Map<string, { todayKwh: number; power: number }>(
-              todayEnergyData.deviceStats.map((stat: {
-                deviceId: string;
-                totalKwh: number;
-                latestPower: number;
-              }) => [stat.deviceId, { todayKwh: stat.totalKwh, power: stat.latestPower }])
-            );
-
-            // 更新设备的今日能耗和功率
-            setDevices((prev) =>
-              prev.map((d) => {
-                const energyInfo = energyMap.get(d.did);
-                return {
-                  ...d,
-                  todayKwh: energyInfo?.todayKwh ?? d.todayKwh,
-                  power: energyInfo?.power ?? d.power,
-                };
-              })
-            );
-          }
-        } catch (err) {
-          console.error("加载能耗数据失败:", err);
-        }
-
-        // 4. 如果网关未连接，尝试自动重连
+        // 如果网关未连接，尝试自动重连
         const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
         if (!hasConnected && gateways.length > 0) {
           setGatewayStatus("connecting");
@@ -441,7 +453,6 @@ export default function ControlPanel() {
         } else if (hasConnected) {
           setGatewayStatus("connected");
         } else {
-          // 没有配置网关
           setGatewayStatus("disconnected");
         }
       } catch (err) {
@@ -457,14 +468,17 @@ export default function ControlPanel() {
   useEffect(() => {
     // 设备管理、空间管理、场景管理、能耗分析、自动化页面都需要最新设备数据
     if (["devices", "rooms", "scenes", "energy", "automation"].includes(currentPage)) {
-      queryDevices();
+      // 仅设备管理和能耗分析需要能耗数据，其他 Tab 跳过额外查询
+      const needEnergy = ["devices", "energy"].includes(currentPage);
+      queryDevices(needEnergy);
     }
   }, [currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const queryDevices = async () => {
+  const queryDevices = async (includeEnergy = true) => {
     try {
+      const devicesUrl = includeEnergy ? "/api/devices" : "/api/devices?noEnergy=true";
       const [devicesRes, spacesRes] = await Promise.all([
-        fetch("/api/devices"),
+        fetch(devicesUrl),
         fetch("/api/rooms"),
       ]);
       const devicesData = await devicesRes.json();
@@ -897,315 +911,6 @@ function Header({
         </div>
       </div>
     </header>
-  );
-}
-
-// ==================== 仪表盘页面 ====================
-function DashboardPage({
-  stats,
-  devices,
-  spaces,
-  onDeviceClick,
-}: {
-  stats: { totalDevices: number; onlineDevices: number; offlineDevices: number; totalRooms: number };
-  devices: InSonaDevice[];
-  spaces: SpaceNode[];
-  onDeviceClick: (device: InSonaDevice) => void;
-}) {
-  const [energyPeriod, setEnergyPeriod] = useState(7);
-  const [realEnergyData, setRealEnergyData] = useState<EnergyData[]>([]);
-
-  // 获取真实能耗数据
-  useEffect(() => {
-    const fetchEnergyData = async () => {
-      const to = getLocalDateOffset(0);
-      const from = getLocalDateOffset(-energyPeriod);
-      try {
-        const res = await fetch(`/api/energy?from=${from}&to=${to}`);
-        const data = await res.json();
-        if (data.dailyTotals) {
-          const chartData: EnergyData[] = data.dailyTotals.map((item: { date: string; _sum: { kwh: number | null } }) => ({
-            date: `${new Date(item.date).getMonth() + 1}/${new Date(item.date).getDate()}`,
-            value: Math.round((item._sum.kwh ?? 0) * 1000), // 转换为 Wh
-          }));
-          setRealEnergyData(chartData);
-        }
-      } catch (err) {
-        console.error("获取能耗数据失败:", err);
-      }
-    };
-    fetchEnergyData();
-  }, [energyPeriod]);
-
-  // 将空间树扁平化为房间列表
-  const flattenRooms = (nodes: SpaceNode[]): SpaceNode[] => {
-    const result: SpaceNode[] = [];
-    const flatten = (nodeList: SpaceNode[]) => {
-      for (const node of nodeList) {
-        if (node.type === "room") {
-          result.push(node);
-        }
-        if (node.children) {
-          flatten(node.children);
-        }
-      }
-    };
-    flatten(nodes);
-    return result;
-  };
-
-  const roomList = flattenRooms(spaces);
-
-  // 使用真实能耗数据（如果没有数据则显示空）
-  const energyData = realEnergyData.length > 0 ? realEnergyData : [];
-
-  // 在线率计算
-  const onlineRate = stats.totalDevices > 0 ? ((stats.onlineDevices / stats.totalDevices) * 100).toFixed(1) : "0";
-
-  return (
-    <div className="fade-in">
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="stat-card">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-blue-200 mb-1">总设备数</p>
-              <h3 className="text-3xl font-bold text-white">{stats.totalDevices}</h3>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <i className="fas fa-lightbulb text-white text-xl" />
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-green-200 mb-1">在线设备</p>
-              <h3 className="text-3xl font-bold text-white">{stats.onlineDevices}</h3>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <i className="fas fa-check-circle text-white text-xl" />
-            </div>
-          </div>
-          <div className="flex items-center text-sm">
-            <span className="text-green-200">在线率: {onlineRate}%</span>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-red-200 mb-1">离线设备</p>
-              <h3 className="text-3xl font-bold text-white">{stats.offlineDevices}</h3>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <i className="fas fa-exclamation-triangle text-white text-xl" />
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-purple-200 mb-1">房间数量</p>
-              <h3 className="text-3xl font-bold text-white">{stats.totalRooms}</h3>
-            </div>
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <i className="fas fa-building text-white text-xl" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 图表区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 card">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-white">能耗趋势</h3>
-            <select
-              className="input-field"
-              style={{ width: "auto" }}
-              value={energyPeriod}
-              onChange={(e) => setEnergyPeriod(Number(e.target.value))}
-            >
-              <option value={7}>近7天</option>
-              <option value={30}>近30天</option>
-              <option value={90}>近90天</option>
-            </select>
-          </div>
-          <EnergyChart data={energyData} />
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-bold text-white mb-6">设备状态分布</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">在线</span>
-                <span className="text-sm font-medium text-white">{onlineRate}%</span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${onlineRate}%`, background: "linear-gradient(90deg, #10b981 0%, #059669 100%)" }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">离线</span>
-                <span className="text-sm font-medium text-white">
-                  {stats.totalDevices > 0 ? ((stats.offlineDevices / stats.totalDevices) * 100).toFixed(1) : "0"}%
-                </span>
-              </div>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{
-                    width: `${stats.totalDevices > 0 ? ((stats.offlineDevices / stats.totalDevices) * 100).toFixed(1) : "0"}%`,
-                    background: "linear-gradient(90deg, #64748b 0%, #475569 100%)",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
-            <p className="text-sm text-blue-300 mb-2">
-              <i className="fas fa-info-circle mr-2" />
-              系统提示
-            </p>
-            <p className="text-xs text-gray-400">
-              {stats.offlineDevices > 0 ? "建议对离线设备进行检修，确保系统稳定运行" : "所有设备运行正常"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 设备列表 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="text-lg font-bold text-white mb-6">在线设备</h3>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {devices.filter((d) => d.alive === 1).slice(0, 5).map((device) => (
-              <div
-                key={device.did}
-                className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
-                onClick={() => onDeviceClick(device)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-lightbulb text-green-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">{device.name}</p>
-                    <p className="text-xs text-gray-400">{DEVICE_TYPE_LABELS[device.type] || `设备类型${device.type}`}</p>
-                  </div>
-                </div>
-                <span className="badge badge-success">在线</span>
-              </div>
-            ))}
-            {devices.filter((d) => d.alive === 1).length === 0 && (
-              <p className="text-center text-gray-400 py-8">暂无在线设备</p>
-            )}
-          </div>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-bold text-white mb-6">房间列表</h3>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {roomList.slice(0, 5).map((room) => {
-              const roomDevices = devices.filter((d) => d.roomId === room.id);
-              const onlineCount = roomDevices.filter((d) => d.alive === 1).length;
-              return (
-                <div
-                  key={room.id}
-                  className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                      <i className="fas fa-door-open text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{room.name}</p>
-                      <p className="text-xs text-gray-400">{room.deviceCount ?? 0} 个设备</p>
-                    </div>
-                  </div>
-                  <span className="badge badge-info">{room.onlineDeviceCount ?? 0} 在线</span>
-                </div>
-              );
-            })}
-            {roomList.length === 0 && (
-              <p className="text-center text-gray-400 py-8">暂无房间数据</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ==================== 能耗图表组件 ====================
-function EnergyChart({ data }: { data: EnergyData[] }) {
-  const maxValue = Math.max(...data.map((d) => d.value));
-  const minValue = Math.min(...data.map((d) => d.value));
-  const range = maxValue - minValue || 1;
-
-  return (
-    <div className="h-64 flex items-end justify-between gap-2 px-2">
-      {data.map((item, index) => {
-        const height = 40 + ((item.value - minValue) / range) * 160;
-        const carbonEmission = item.carbonEmission ?? 0;
-        return (
-          <div key={index} className="flex-1 flex flex-col items-center gap-2">
-            <div
-              className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-500 hover:to-blue-300"
-              style={{ height: `${height}px`, minHeight: "20px" }}
-              title={`${item.date}: ${item.value.toFixed(3)} kWh\n碳排放: ${carbonEmission.toFixed(3)} kgCO₂e`}
-            />
-            <span className="text-xs text-gray-500">{item.date}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// 柱状图组件
-function EnergyBarChart({ data }: { data: { name: string; value: number }[] }) {
-  const maxValue = Math.max(...data.map((d) => d.value), 1);
-
-  const colors = [
-    "from-blue-600 to-blue-400",
-    "from-green-600 to-green-400",
-    "from-yellow-600 to-yellow-400",
-    "from-red-600 to-red-400",
-    "from-purple-600 to-purple-400",
-    "from-pink-600 to-pink-400",
-    "from-indigo-600 to-indigo-400",
-    "from-teal-600 to-teal-400",
-  ];
-
-  return (
-    <div className="space-y-3">
-      {data.slice(0, 8).map((item, index) => {
-        const height = (item.value / maxValue) * 120;
-        return (
-          <div key={item.name} className="flex items-center gap-3">
-            <span className="text-sm text-gray-300 w-20 truncate" title={item.name}>{item.name}</span>
-            <div className="flex-1 h-6 bg-gray-700/30 rounded overflow-hidden">
-              <div
-                className={`h-full bg-gradient-to-r ${colors[index % colors.length]} rounded transition-all duration-300`}
-                style={{ width: `${(item.value / maxValue) * 100}%`, minWidth: "2px" }}
-                title={`${item.value.toFixed(2)} kWh`}
-              />
-            </div>
-            <span className="text-sm text-gray-400 w-24 text-right">{item.value.toFixed(2)} kWh</span>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -4138,65 +3843,11 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
 
           <div style={{ height: "300px" }}>
             {todayChartType === "hourly" && todayEnergy.hourlyData && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={todayEnergy.hourlyData}>
-                  <defs>
-                    <linearGradient id="colorToday" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="hour" stroke="#9ca3af" fontSize={12} />
-                  <YAxis stroke="#9ca3af" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="kwh"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    fill="url(#colorToday)"
-                    name="能耗(kWh)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <TodayEnergyHourlyChart data={todayEnergy.hourlyData} />
             )}
 
             {todayChartType === "room" && todayEnergy.roomStats && (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={todayEnergy.roomStats.sort((a, b) => b.totalKwh - a.totalKwh)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="roomName"
-                    stroke="#9ca3af"
-                    fontSize={11}
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis stroke="#9ca3af" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "none",
-                      borderRadius: "8px",
-                    }}
-                    formatter={(value: number) => [`${value.toFixed(4)} kWh`, "能耗"]}
-                  />
-                  <Bar
-                    dataKey="totalKwh"
-                    fill="#3b82f6"
-                    radius={[8, 8, 0, 0]}
-                    name="能耗(kWh)"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <TodayEnergyRoomChart data={todayEnergy.roomStats.sort((a: any, b: any) => b.totalKwh - a.totalKwh)} />
             )}
           </div>
 

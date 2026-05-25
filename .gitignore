@@ -18,3 +18,7 @@ tsconfig.tsbuildinfo
 
 # Device data files
 insona-devices.json
+room-binding.json
+
+# Runtime data directory
+data/
