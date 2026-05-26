@@ -40,6 +40,8 @@ class GatewayService {
   // UUID counter capped at 9 digits for inSona gateway compatibility
   private _uuidCounter: number = 0;
   private _isManualDisconnect: boolean = false; // 区分手动断开和意外断开
+  private _syncing: boolean = false; // 防止并发同步
+  private _syncTimer: NodeJS.Timeout | null = null; // 自动同步定时器
 
   constructor(gatewayId: string = "default") {
     this.gatewayId = gatewayId;
@@ -148,11 +150,19 @@ class GatewayService {
         }
 
         // 连接成功后延迟同步设备数据，给前端时间建立 SSE 连接
-        setTimeout(() => {
+        // 清除之前的同步定时器，防止重复连接导致并发同步
+        if (this._syncTimer) {
+          clearTimeout(this._syncTimer);
+        }
+        this._syncTimer = setTimeout(() => {
+          this._syncTimer = null;
+          if (this._syncing) {
+            debug("Auto-sync skipped: sync already in progress");
+            return;
+          }
           this.syncDevices()
             .then(() => {
               debug("Auto-sync completed after connection");
-              // syncDevices() 会调用 queryDevices()，结果会通过 SSE 广播
             })
             .catch((err) => {
               debug("Auto-sync failed after connection:", err.message);
@@ -250,6 +260,10 @@ class GatewayService {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+    if (this._syncTimer) {
+      clearTimeout(this._syncTimer);
+      this._syncTimer = null;
     }
     this.pendingRequests.forEach(({ timeout }) => clearTimeout(timeout));
     this.pendingRequests.clear();
@@ -366,6 +380,21 @@ class GatewayService {
   }
 
   async syncDevices(): Promise<void> {
+    // 防止并发同步（同一网关的多个 syncDevices 调用）
+    if (this._syncing) {
+      debug("[SYNC] Already syncing, skipping duplicate call");
+      return;
+    }
+    this._syncing = true;
+
+    try {
+      await this._syncDevicesInternal();
+    } finally {
+      this._syncing = false;
+    }
+  }
+
+  private async _syncDevicesInternal(): Promise<void> {
     debug("[SYNC] Starting device synchronization...");
 
     // 校验网关是否存在
@@ -456,20 +485,41 @@ class GatewayService {
         const originalDidValue = isGroupDevice(did) ? did : undefined;
 
         try {
-          // 组设备：先检查是否存在旧格式的纯 ID 记录，有的话迁移到复合 ID
+          // 组设备：检查是否存在同网关的旧格式纯 ID 记录（meshId 为空），有则迁移到复合 ID
+          // 注意：必须限定 gatewayId，防止将其他网关的同名设备误迁移
           if (isGroupDevice(did)) {
-            const existingPlain = await prisma.device.findUnique({ where: { id: did } });
+            const existingPlain = validGatewayId
+              ? await prisma.device.findFirst({
+                  where: { id: did, meshId: null, gatewayId: validGatewayId },
+                })
+              : null;
             if (existingPlain && existingPlain.id !== storedId) {
-              // 存在旧记录，更新 ID 为复合格式（同时更新数据）
-              await prisma.device.update({
-                where: { id: existingPlain.id },
-                data: {
-                  id: storedId,
-                  pid, ver, type, meshId: devMeshId, func, alive,
-                  value, funcs, groups, gatewayName: name,
-                  originalDid: originalDidValue,
-                },
-              });
+              // 检查目标复合 ID 是否已存在（防止迁移冲突，如同设备已由其他同步创建）
+              const existingComposite = await prisma.device.findUnique({ where: { id: storedId } });
+              if (existingComposite) {
+                // 目标复合 ID 已存在，直接更新它并删除旧记录
+                await prisma.device.delete({ where: { id: existingPlain.id } });
+                await prisma.device.update({
+                  where: { id: storedId },
+                  data: {
+                    pid, ver, type, meshId: devMeshId, func, alive,
+                    value, funcs, groups, gatewayName: name,
+                    originalDid: originalDidValue,
+                    ...(roomId ? { roomId } : {}),
+                  },
+                });
+              } else {
+                // 不存在冲突，更新旧记录的 ID 为复合格式
+                await prisma.device.update({
+                  where: { id: existingPlain.id },
+                  data: {
+                    id: storedId,
+                    pid, ver, type, meshId: devMeshId, func, alive,
+                    value, funcs, groups, gatewayName: name,
+                    originalDid: originalDidValue,
+                  },
+                });
+              }
               saveSuccess++;
             } else {
               // 不存在旧记录，直接 upsert 复合 ID
