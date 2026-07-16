@@ -113,8 +113,17 @@ async function executeTask(
           }
 
           if (!gw?.isConnected) {
-            console.error(`[Scheduler] Gateway not connected for scene action on device ${sa.deviceId}`);
-            continue;
+            console.log(`[Scheduler] Gateway not connected for scene action on device ${sa.deviceId}, attempting reconnect...`)
+            await multiGatewayService.loadAndConnectAll()
+            if (sa.gatewayId) {
+              gw = multiGatewayService.getGateway(sa.gatewayId)
+            } else {
+              gw = multiGatewayService.getConnectedGateways()[0]
+            }
+            if (!gw?.isConnected) {
+              console.error(`[Scheduler] Gateway still not connected after reconnect, skipping scene action on device ${sa.deviceId}`)
+              continue
+            }
           }
 
           // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
@@ -127,13 +136,18 @@ async function executeTask(
       const parsedValue = parseValue(task.value);
 
       // Route to correct gateway via device's gatewayId
-      const gw = task.device.gatewayId
+      let gw = task.device.gatewayId
         ? multiGatewayService.getGateway(task.device.gatewayId)
         : undefined;
 
       if (!gw?.isConnected) {
-        console.error(`[Scheduler] Gateway not connected for device ${task.deviceId}`);
-        return;
+        console.log(`[Scheduler] Gateway not connected for device ${task.deviceId}, attempting reconnect...`)
+        await multiGatewayService.loadAndConnectAll()
+        gw = task.device.gatewayId ? multiGatewayService.getGateway(task.device.gatewayId) : undefined
+        if (!gw?.isConnected) {
+          console.error(`[Scheduler] Gateway still not connected after reconnect for device ${task.deviceId}`)
+          return
+        }
       }
 
       // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
@@ -211,10 +225,15 @@ export async function runSchedulerTick(): Promise<{ executed: number; errors: nu
 export async function runTaskNow(taskId: string): Promise<{ success: boolean; error?: string }> {
   console.log(`[Scheduler] 立即执行任务: ${taskId}`);
 
-  const connectedGateways = multiGatewayService.getConnectedGateways();
+  let connectedGateways = multiGatewayService.getConnectedGateways()
   if (connectedGateways.length === 0) {
-    console.error("[Scheduler] 无已连接网关");
-    return { success: false, error: "网关未连接" };
+    console.log("[Scheduler] 立即执行：无已连接网关，尝试自动重连...")
+    await multiGatewayService.loadAndConnectAll()
+    connectedGateways = multiGatewayService.getConnectedGateways()
+    if (connectedGateways.length === 0) {
+      console.error("[Scheduler] 无已连接网关")
+      return { success: false, error: "网关未连接" }
+    }
   }
 
   try {

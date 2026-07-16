@@ -39,35 +39,49 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
     console.log(`[Scene Activate] 场景 "${scene.name}" 包含 ${scene.actions.length} 个动作`);
 
+    // Ensure gateways are connected (same pattern as device control)
+    let connectedGateways = multiGatewayService.getConnectedGateways()
+    if (connectedGateways.length === 0) {
+      console.log(`[Scene Activate] No connected gateways, attempting auto-connect...`)
+      await multiGatewayService.loadAndConnectAll()
+      connectedGateways = multiGatewayService.getConnectedGateways()
+    }
+
     // Flatten all actions with their gateway, then fire with 100ms interval
     const queuedActions: Array<{
-      gw: NonNullable<ReturnType<typeof multiGatewayService.getGateway>>;
-      did: string;
-      action: string;
-      parsedValue: number[];
-      meshId: string;
-      deviceId: string;
-    }> = [];
+      gw: NonNullable<ReturnType<typeof multiGatewayService.getGateway>>
+      did: string
+      action: string
+      parsedValue: number[]
+      meshId: string
+      deviceId: string
+    }> = []
 
     for (const [gwKey, gwActions] of actionsByGateway) {
-      const gw = gwKey === "__fallback__"
+      let gw = gwKey === "__fallback__"
         ? multiGatewayService.getConnectedGateways()[0]
-        : multiGatewayService.getGateway(gwKey);
+        : multiGatewayService.getGateway(gwKey)
 
       if (!gw || !gw.isConnected) {
-        console.error(`[Scene Activate] Gateway ${gwKey} not connected, skipping ${gwActions.length} actions`);
-        continue;
+        console.error(`[Scene Activate] Gateway ${gwKey} not connected, attempting reconnect...`)
+        await multiGatewayService.loadAndConnectAll()
+        const retryGw = gwKey === "__fallback__"
+          ? multiGatewayService.getConnectedGateways()[0]
+          : multiGatewayService.getGateway(gwKey)
+        if (!retryGw || !retryGw.isConnected) {
+          console.error(`[Scene Activate] Gateway ${gwKey} still not connected after reconnect, skipping ${gwActions.length} actions`)
+          continue
+        }
+        gw = retryGw as NonNullable<ReturnType<typeof multiGatewayService.getGateway>>
       }
 
-      const connectedGw = gw;
-
       for (const sa of gwActions) {
-        const strValue = typeof sa.value === "string" ? sa.value.replace(/[\[\]"]/g, "") : String(sa.value);
-        const parsedValue: number[] = strValue.split(",").map(Number);
-        const ctrlAction = sa.action === "cct" ? "ctl" : sa.action;
-        const { did } = parseStoredDeviceId(sa.deviceId);
+        const strValue = typeof sa.value === "string" ? sa.value.replace(/[\[\]"]/g, "") : String(sa.value)
+        const parsedValue: number[] = strValue.split(",").map(Number)
+        const ctrlAction = sa.action === "cct" ? "ctl" : sa.action
+        const { did } = parseStoredDeviceId(sa.deviceId)
 
-        queuedActions.push({ gw: connectedGw, did, action: ctrlAction, parsedValue, meshId: sa.meshId, deviceId: sa.deviceId });
+        queuedActions.push({ gw, did, action: ctrlAction, parsedValue, meshId: sa.meshId, deviceId: sa.deviceId })
       }
     }
 

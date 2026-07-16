@@ -3011,7 +3011,7 @@ function SceneEditModal({
 
                   {/* 表头 */}
                   <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500 border-b border-white/10">
-                    <span className="shrink-0" style={{ width: 140 }}>设备名称</span>
+                    <span className="shrink-0 whitespace-nowrap">设备名称</span>
                     <span className="text-center shrink-0" style={{ width: 80 }}>功能</span>
                     <span className="text-center flex-1">参数</span>
                     <span className="text-center shrink-0">操作</span>
@@ -3031,7 +3031,7 @@ function SceneEditModal({
                             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-colors overflow-x-auto"
                           >
                             {/* 设备名称 */}
-                            <div className="flex flex-col gap-0.5 min-w-0 shrink-0" style={{ width: 140 }}>
+                            <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
                               <div className="flex items-center gap-2">
                                 <i className={`fas ${getDeviceIcon(device.func)} text-blue-400 shrink-0`} />
                                 <span className="text-sm text-white truncate">{device.name}</span>

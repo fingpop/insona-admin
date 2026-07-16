@@ -11,11 +11,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "sceneId and meshid are required" }, { status: 400 });
     }
 
-    // Find a connected gateway that has this mesh
-    const gateways = multiGatewayService.getConnectedGateways();
-    const gw = gateways[0];
+    // Find a connected gateway that has this mesh, with auto-reconnect
+    let gateways = multiGatewayService.getConnectedGateways()
+    if (gateways.length === 0) {
+      console.log("[Scene Activate] No connected gateways, attempting auto-connect...")
+      await multiGatewayService.loadAndConnectAll()
+      gateways = multiGatewayService.getConnectedGateways()
+    }
+
+    const gw = gateways[0]
     if (!gw) {
-      return NextResponse.json({ error: "No gateway connected" }, { status: 503 });
+      return NextResponse.json({ error: "No gateway connected" }, { status: 503 })
     }
 
     await gw.activateScene(sceneId, meshid);
