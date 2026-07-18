@@ -1296,8 +1296,21 @@ function DevicesPage({
               })
             ) : (
               <tr>
-                <td colSpan={9} className="text-center text-gray-400 py-8">
-                  未找到符合条件的设备
+                <td colSpan={9} className="text-center py-8">
+                  <div className="flex flex-col items-center gap-2">
+                    {devices.length === 0 ? (
+                      <span className="text-gray-400">
+                        {gatewayStatus === "connected"
+                          ? "暂无设备数据，请点击右上角「同步设备」获取网关中的设备列表"
+                          : "网关未连接，请在设置页面配置网关IP并建立连接"}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">
+                        未找到符合条件的设备
+                        <span className="text-gray-500 text-sm ml-2">（尝试调整筛选条件或切换标签页）</span>
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
