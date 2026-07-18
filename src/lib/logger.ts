@@ -74,17 +74,14 @@ class Logger {
       console.log(prefix, ...args);
     }
 
-    // 写入文件（按天分割）
+    // 异步写入文件（按天分割），不阻塞事件循环
     if (this.enableFile) {
-      try {
-        const date = new Date().toISOString().split("T")[0];
-        const logFile = path.join(this.logDir, `${date}.log`);
-        const logLine = `${entry.timestamp} [${level.toUpperCase()}] [${module}] ${message}\n`;
-        fs.appendFileSync(logFile, logLine, "utf-8");
-      } catch (err) {
-        // 文件写入失败不影响主流程
-        console.error("[Logger] File write failed:", err);
-      }
+      const date = new Date().toISOString().split("T")[0];
+      const logFile = path.join(this.logDir, `${date}.log`);
+      const logLine = `${entry.timestamp} [${level.toUpperCase()}] [${module}] ${message}\n`;
+      fs.appendFile(logFile, logLine, "utf-8", (err) => {
+        if (err) console.error("[Logger] File write failed:", err.message);
+      });
     }
 
     return entry;
@@ -167,5 +164,25 @@ class Logger {
   }
 }
 
-// 单例导出
-export const logger = new Logger();
+// 使用 globalThis 确保跨模块上下文（instrumentation.ts / API routes / services）的真正单例
+// Next.js 15 中不同模块上下文可能各自实例化模块，导致内存 buffer 不一致
+declare global {
+  // eslint-disable-next-line no-var
+  var __insonaLogger: Logger | undefined;
+}
+
+function getLogger(): Logger {
+  if (!globalThis.__insonaLogger) {
+    globalThis.__insonaLogger = new Logger();
+  }
+  return globalThis.__insonaLogger;
+}
+
+// 代理对象：所有方法调用都转发到 globalThis 上的真正单例
+export const logger = new Proxy({} as Logger, {
+  get(_target, prop: keyof Logger) {
+    const instance = getLogger();
+    const value = instance[prop];
+    return typeof value === "function" ? value.bind(instance) : value;
+  },
+});

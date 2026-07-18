@@ -2,6 +2,7 @@ import { CronExpressionParser } from "cron-parser";
 import { prisma } from "@/lib/prisma";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { parseStoredDeviceId } from "@/lib/types";
+import { logger } from "@/lib/logger";
 
 declare global {
   var __schedulerLastTick: number | undefined;
@@ -37,7 +38,7 @@ function shouldRunNow(cronExpr: string, lastRun: Date | null, now: Date): boolea
     }
     return false;
   } catch (err) {
-    console.error(`[Scheduler] 解析 cron 表达式失败:`, err);
+    logger.error("Scheduler", "解析 cron 表达式失败", err);
     return false;
   }
 }
@@ -75,7 +76,7 @@ async function executeTask(
     scene: { id: string; name: string } | null;
   }
 ): Promise<void> {
-  console.log(`[Scheduler] 执行任务: "${task.name}" (${task.id})`);
+  logger.info("Scheduler", `开始执行任务「${task.name}」(${task.id})`);
 
   try {
     if (task.action === "scene" && task.sceneId) {
@@ -85,11 +86,11 @@ async function executeTask(
       });
 
       if (!scene) {
-        console.error(`[Scheduler] 场景不存在: ${task.sceneId}`);
+        logger.error("Scheduler", `场景不存在: ${task.sceneId}`);
         return;
       }
 
-      console.log(`[Scheduler] 执行场景 "${scene.name}"，包含 ${scene.actions.length} 个动作`);
+      logger.info("Scheduler", `执行场景「${scene.name}」，包含 ${scene.actions.length} 个动作`);
 
       const byMesh = new Map<string, typeof scene.actions>();
       for (const a of scene.actions) {
@@ -113,17 +114,9 @@ async function executeTask(
           }
 
           if (!gw?.isConnected) {
-            console.log(`[Scheduler] Gateway not connected for scene action on device ${sa.deviceId}, attempting reconnect...`)
-            await multiGatewayService.loadAndConnectAll()
-            if (sa.gatewayId) {
-              gw = multiGatewayService.getGateway(sa.gatewayId)
-            } else {
-              gw = multiGatewayService.getConnectedGateways()[0]
-            }
-            if (!gw?.isConnected) {
-              console.error(`[Scheduler] Gateway still not connected after reconnect, skipping scene action on device ${sa.deviceId}`)
-              continue
-            }
+            // 不主动重连，由 GatewayService._scheduleReconnect() 负责恢复
+            logger.warn("Scheduler", `设备 ${sa.deviceId} 的网关未连接，跳过该动作`)
+            continue
           }
 
           // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
@@ -141,13 +134,9 @@ async function executeTask(
         : undefined;
 
       if (!gw?.isConnected) {
-        console.log(`[Scheduler] Gateway not connected for device ${task.deviceId}, attempting reconnect...`)
-        await multiGatewayService.loadAndConnectAll()
-        gw = task.device.gatewayId ? multiGatewayService.getGateway(task.device.gatewayId) : undefined
-        if (!gw?.isConnected) {
-          console.error(`[Scheduler] Gateway still not connected after reconnect for device ${task.deviceId}`)
-          return
-        }
+        // 不主动重连，由 GatewayService._scheduleReconnect() 负责恢复
+        logger.warn("Scheduler", `设备 ${task.deviceId} 的网关未连接，跳过任务`)
+        return
       }
 
       // 解析复合 ID（组设备存储为 meshId:did，需要还原原始 did）
@@ -158,7 +147,7 @@ async function executeTask(
         .update({ where: { id: task.deviceId }, data: { value: task.value } })
         .catch(() => {});
     } else {
-      console.error(`[Scheduler] 任务配置无效: ${task.id}`);
+      logger.error("Scheduler", `任务配置无效: ${task.id}`);
       return;
     }
 
@@ -168,9 +157,9 @@ async function executeTask(
       data: { lastRun: new Date(), nextRun },
     });
 
-    console.log(`[Scheduler] 任务完成: "${task.name}"`);
+    logger.info("Scheduler", `任务完成「${task.name}」`);
   } catch (err) {
-    console.error(`[Scheduler] 任务执行失败: "${task.name}"`, err);
+    logger.error("Scheduler", `任务执行失败「${task.name}」`, err);
   }
 }
 
@@ -178,16 +167,16 @@ export async function runSchedulerTick(): Promise<{ executed: number; errors: nu
   const now = Date.now();
 
   if (now - (globalThis.__schedulerLastTick ?? 0) < 55_000) {
-    console.log('[Scheduler] 跳过本次 tick（同一分钟内）');
+    logger.debug("Scheduler", "跳过本次 tick（同一分钟内）");
     return { executed: 0, errors: 0, skipped: true };
   }
 
   globalThis.__schedulerLastTick = now;
-  console.log('[Scheduler] 开始检查定时任务...');
+  logger.info("Scheduler", "开始检查定时任务...");
 
   const connectedGateways = multiGatewayService.getConnectedGateways();
   if (connectedGateways.length === 0) {
-    console.log("[Scheduler] 无已连接网关，跳过本次 tick");
+    logger.warn("Scheduler", "无已连接网关，跳过本次 tick");
     return { executed: 0, errors: 0, skipped: false };
   }
 
@@ -200,7 +189,7 @@ export async function runSchedulerTick(): Promise<{ executed: number; errors: nu
     },
   });
 
-  console.log(`[Scheduler] 找到 ${tasks.length} 个启用的任务`);
+  logger.info("Scheduler", `找到 ${tasks.length} 个启用的任务`);
 
   let executed = 0;
   let errors = 0;
@@ -212,28 +201,24 @@ export async function runSchedulerTick(): Promise<{ executed: number; errors: nu
         await executeTask(task);
         executed++;
       } catch (err) {
-        console.error(`[Scheduler] 任务执行异常:`, err);
+        logger.error("Scheduler", "任务执行异常", err);
         errors++;
       }
     }
   }
 
-  console.log(`[Scheduler] 检查完成: executed=${executed}, errors=${errors}`);
+  logger.info("Scheduler", `检查完成: executed=${executed}, errors=${errors}`);
   return { executed, errors, skipped: false };
 }
 
 export async function runTaskNow(taskId: string): Promise<{ success: boolean; error?: string }> {
-  console.log(`[Scheduler] 立即执行任务: ${taskId}`);
+  logger.info("Scheduler", `立即执行任务: ${taskId}`);
 
   let connectedGateways = multiGatewayService.getConnectedGateways()
   if (connectedGateways.length === 0) {
-    console.log("[Scheduler] 立即执行：无已连接网关，尝试自动重连...")
-    await multiGatewayService.loadAndConnectAll()
-    connectedGateways = multiGatewayService.getConnectedGateways()
-    if (connectedGateways.length === 0) {
-      console.error("[Scheduler] 无已连接网关")
-      return { success: false, error: "网关未连接" }
-    }
+    // 不主动重连，由 GatewayService._scheduleReconnect() 负责恢复
+    logger.warn("Scheduler", "无已连接网关，任务无法执行")
+    return { success: false, error: "网关未连接" }
   }
 
   try {
@@ -252,7 +237,7 @@ export async function runTaskNow(taskId: string): Promise<{ success: boolean; er
     await executeTask(task);
     return { success: true };
   } catch (err) {
-    console.error("[Scheduler] 立即执行失败:", err);
+    logger.error("Scheduler", "立即执行失败", err);
     return { success: false, error: String(err) };
   }
 }

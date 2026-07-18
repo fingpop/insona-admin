@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { multiGatewayService } from "@/lib/gateway/MultiGatewayService";
 import { parseStoredDeviceId } from "@/lib/types";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       actionsByGateway.get(gwKey)!.push(action);
     }
 
-    console.log(`[Scene Activate] 场景 "${scene.name}" 包含 ${scene.actions.length} 个动作`);
+    logger.info("Scene", `开始执行场景「${scene.name}」，包含 ${scene.actions.length} 个动作`);
 
     // 检查已连接的网关，连接状态由 GatewayService / instrumentation.ts / SettingsPage 统一管理
     const connectedGateways = multiGatewayService.getConnectedGateways();
@@ -62,7 +63,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
       if (!gw || !gw.isConnected) {
         // 不主动重连，跳过该网关上的动作
-        console.warn(`[Scene Activate] Gateway ${gwKey} not connected, skipping ${gwActions.length} actions`)
+        logger.warn("Scene", `网关 ${gwKey} 未连接，跳过 ${gwActions.length} 条动作`)
         continue
       }
 
@@ -76,7 +77,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       }
     }
 
-    console.log(`[Scene Activate] 共 ${queuedActions.length} 条指令待发送，间隔 100ms`);
+    logger.info("Scene", `共 ${queuedActions.length} 条指令待发送，间隔 100ms`);
 
     // Fire all commands with 100ms interval, no waiting for response
     for (let i = 0; i < queuedActions.length; i++) {
@@ -84,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Params }) {
       try {
         gw.fireControl(did, action, parsedValue, meshId, 0);
       } catch (err) {
-        console.error(`[Scene Activate] 发送失败 [${i + 1}/${queuedActions.length}]:`, err);
+        logger.error("Scene", `指令发送失败 [${i + 1}/${queuedActions.length}]`, err);
       }
       // 100ms interval between each command (skip delay after the last one)
       if (i < queuedActions.length - 1) {
@@ -92,11 +93,11 @@ export async function POST(request: Request, { params }: { params: Params }) {
       }
     }
 
-    console.log(`[Scene Activate] 全部指令已发送完成，共 ${queuedActions.length} 条`);
+    logger.info("Scene", `场景「${scene.name}」执行完成，共发送 ${queuedActions.length} 条指令`);
 
     return Response.json({ success: true, executed: queuedActions.length });
   } catch (err) {
-    console.error("Failed to activate scene:", err);
+    logger.error("Scene", "场景执行失败", err);
     return NextResponse.json({ error: "执行场景失败" }, { status: 500 });
   }
 }

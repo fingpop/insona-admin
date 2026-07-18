@@ -3992,6 +3992,7 @@ function LogsPage() {
   const [searchText, setSearchText] = useState<string>("");
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = useCallback(async () => {
@@ -4000,6 +4001,7 @@ function LogsPage() {
       if (levelFilter) params.set("level", levelFilter);
       if (moduleFilter) params.set("module", moduleFilter);
       if (searchText) params.set("search", searchText);
+      if (dateFilter) params.set("date", dateFilter);
       params.set("limit", "500");
       const res = await fetch(`/api/system/logs?${params.toString()}`);
       const data = await res.json();
@@ -4010,18 +4012,20 @@ function LogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [levelFilter, moduleFilter, searchText]);
+  }, [levelFilter, moduleFilter, searchText, dateFilter]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  // 自动刷新
+  // 自动刷新（仅查看今天时生效）
   useEffect(() => {
     if (!autoRefresh) return;
+    const today = new Date().toISOString().split("T")[0];
+    if (dateFilter && dateFilter !== today) return;
     const timer = setInterval(fetchLogs, 3000);
     return () => clearInterval(timer);
-  }, [autoRefresh, fetchLogs]);
+  }, [autoRefresh, fetchLogs, dateFilter]);
 
   const handleClear = async () => {
     if (!confirm("确认清空所有日志？")) return;
@@ -4062,6 +4066,32 @@ function LogsPage() {
       {/* 工具栏 */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-calendar-alt text-gray-400" />
+            <input
+              type="date"
+              value={dateFilter}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateFilter(val);
+                // 选择历史日期时自动关闭自动刷新
+                if (val && val !== new Date().toISOString().split("T")[0]) {
+                  setAutoRefresh(false);
+                }
+              }}
+              className="input-field text-sm"
+              style={{ padding: "6px 12px", width: "auto" }}
+            />
+            {dateFilter !== new Date().toISOString().split("T")[0] && (
+              <button
+                onClick={() => setDateFilter(new Date().toISOString().split("T")[0])}
+                className="text-xs text-[#3b9eff] hover:underline"
+              >
+                回到今天
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-1 min-w-[200px]">
             <i className="fas fa-search text-gray-400" />
             <input
