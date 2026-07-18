@@ -37,8 +37,7 @@ export async function POST(request: Request) {
     let connectedGateways = multiGatewayService.getConnectedGateways();
 
     if (connectedGateways.length === 0) {
-      await multiGatewayService.loadAndConnectAll();
-      connectedGateways = multiGatewayService.getConnectedGateways();
+      return NextResponse.json({ error: "Gateway not connected" }, { status: 503 });
     }
 
     let gw = device.gatewayId ? multiGatewayService.getGateway(device.gatewayId) : undefined;

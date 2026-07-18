@@ -8,7 +8,9 @@
 export async function register() {
   // 只在服务器端运行
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    console.log('[Instrumentation] 服务器启动中...');
+    // 动态导入 logger（避免在模块顶层引入导致循环依赖）
+    const { logger } = await import('./lib/logger');
+    logger.info("System", "服务器启动中...");
 
     // 动态导入避免客户端打包
     const { startScheduler } = await import('./lib/scheduler/BackgroundScheduler');
@@ -16,8 +18,19 @@ export async function register() {
 
     // 多网关自动连接（非阻塞，失败不影响服务器启动）
     const { multiGatewayService } = await import('./lib/gateway/MultiGatewayService');
-    multiGatewayService.loadAndConnectAll();
+    multiGatewayService.loadAndConnectAll().catch((err) => {
+      logger.error("System", "网关自动连接失败:", err);
+    });
 
-    console.log('[Instrumentation] 后台服务已启动');
+    // 读取版本信息
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const verPath = path.join(process.cwd(), 'VERSION');
+      const version = fs.existsSync(verPath) ? fs.readFileSync(verPath, 'utf-8').trim() : 'unknown';
+      logger.info("System", `版本 ${version} 已就绪（${process.env.NODE_ENV || 'development'}）`);
+    } catch {
+      logger.info("System", "服务已就绪");
+    }
   }
 }
