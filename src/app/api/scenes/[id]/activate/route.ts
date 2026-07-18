@@ -39,12 +39,10 @@ export async function POST(request: Request, { params }: { params: Params }) {
 
     console.log(`[Scene Activate] 场景 "${scene.name}" 包含 ${scene.actions.length} 个动作`);
 
-    // Ensure gateways are connected (same pattern as device control)
-    let connectedGateways = multiGatewayService.getConnectedGateways()
+    // 检查已连接的网关，连接状态由 GatewayService / instrumentation.ts / SettingsPage 统一管理
+    const connectedGateways = multiGatewayService.getConnectedGateways();
     if (connectedGateways.length === 0) {
-      console.log(`[Scene Activate] No connected gateways, attempting auto-connect...`)
-      await multiGatewayService.loadAndConnectAll()
-      connectedGateways = multiGatewayService.getConnectedGateways()
+      return NextResponse.json({ error: "No gateway connected" }, { status: 503 });
     }
 
     // Flatten all actions with their gateway, then fire with 100ms interval
@@ -63,16 +61,9 @@ export async function POST(request: Request, { params }: { params: Params }) {
         : multiGatewayService.getGateway(gwKey)
 
       if (!gw || !gw.isConnected) {
-        console.error(`[Scene Activate] Gateway ${gwKey} not connected, attempting reconnect...`)
-        await multiGatewayService.loadAndConnectAll()
-        const retryGw = gwKey === "__fallback__"
-          ? multiGatewayService.getConnectedGateways()[0]
-          : multiGatewayService.getGateway(gwKey)
-        if (!retryGw || !retryGw.isConnected) {
-          console.error(`[Scene Activate] Gateway ${gwKey} still not connected after reconnect, skipping ${gwActions.length} actions`)
-          continue
-        }
-        gw = retryGw as NonNullable<ReturnType<typeof multiGatewayService.getGateway>>
+        // 不主动重连，跳过该网关上的动作
+        console.warn(`[Scene Activate] Gateway ${gwKey} not connected, skipping ${gwActions.length} actions`)
+        continue
       }
 
       for (const sa of gwActions) {

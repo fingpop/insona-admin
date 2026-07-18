@@ -10,10 +10,21 @@ export async function GET() {
     multiGatewayService.getConnectedGateways().map((gw) => gw.id)
   );
 
+  // Build a map of actual gateway status from MultiGatewayService (in-memory)
+  const memStatus = new Map<string, string>();
+  for (const gw of gateways) {
+    const svc = multiGatewayService.getGateway(gw.id);
+    if (svc) {
+      memStatus.set(gw.id, svc.status);
+    }
+  }
+
   return NextResponse.json({
     gateways: gateways.map((gw) => ({
       ...gw,
-      liveStatus: connectedIds.has(gw.id) ? "connected" : gw.status,
+      liveStatus: connectedIds.has(gw.id) ? "connected"
+        : memStatus.has(gw.id) ? memStatus.get(gw.id)
+        : "disconnected",
     })),
   });
 }

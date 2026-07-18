@@ -87,14 +87,11 @@ interface EnergyTrendData {
 
 interface HomeLayoutProps {
   gatewayStatus: "connected" | "disconnected" | "connecting";
-  gatewayIP: string;
-  onConnect: () => Promise<void>;
-  onDisconnect: () => Promise<void>;
   currentLang: string;
   onLangChange: (lang: string) => void;
 }
 
-export default function HomeLayout({ gatewayStatus, gatewayIP, onConnect, onDisconnect, currentLang, onLangChange }: HomeLayoutProps) {
+export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }: HomeLayoutProps) {
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [roomStatuses, setRoomStatuses] = useState<RoomStatus[]>([]);

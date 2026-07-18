@@ -11,18 +11,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "sceneId and meshid are required" }, { status: 400 });
     }
 
-    // Find a connected gateway that has this mesh, with auto-reconnect
-    let gateways = multiGatewayService.getConnectedGateways()
+    // 检查已连接的网关，连接状态由 GatewayService / instrumentation.ts / SettingsPage 统一管理
+    const gateways = multiGatewayService.getConnectedGateways();
     if (gateways.length === 0) {
-      console.log("[Scene Activate] No connected gateways, attempting auto-connect...")
-      await multiGatewayService.loadAndConnectAll()
-      gateways = multiGatewayService.getConnectedGateways()
+      return NextResponse.json({ error: "No gateway connected" }, { status: 503 });
     }
-
-    const gw = gateways[0]
-    if (!gw) {
-      return NextResponse.json({ error: "No gateway connected" }, { status: 503 })
-    }
+    const gw = gateways[0];
 
     await gw.activateScene(sceneId, meshid);
 

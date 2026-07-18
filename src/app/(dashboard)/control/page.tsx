@@ -228,7 +228,6 @@ function parseGatewayStatusValue(rawStatus: number[] | undefined, rawValue: numb
 export default function ControlPanel() {
   const [currentPage, setCurrentPage] = useState<string>("dashboard");
   const [gatewayStatus, setGatewayStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
-  const [gatewayIP, setGatewayIP] = useState("");
   const [dbDevices, setDbDevices] = useState<DbDevice[]>([]);
   const [spaces, setSpaces] = useState<SpaceNode[]>([]);
   const [devices, setDevices] = useState<InSonaDevice[]>([]);
@@ -433,12 +432,6 @@ export default function ControlPanel() {
           })(),
         ]);
 
-        // 设置第一个网关的 IP（用于手动连接）
-        const firstGw = gateways.find((g: { ip: string }) => g.ip);
-        if (firstGw) {
-          setGatewayIP(firstGw.ip);
-        }
-
         // 如果网关未连接，尝试自动重连
         const hasConnected = gateways.some((g: { status: string }) => g.status === "connected");
         if (!hasConnected && gateways.length > 0) {
@@ -532,33 +525,6 @@ export default function ControlPanel() {
     setDrawerOpen(true);
   };
 
-  const connectGateway = async () => {
-    if (!gatewayIP) return;
-    setGatewayStatus("connecting");
-    try {
-      const res = await fetch("/api/gateway/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip: gatewayIP }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        alert(data.error);
-        setGatewayStatus("disconnected");
-      } else if (data.status === "connected") {
-        setGatewayStatus("connected");
-      }
-    } catch (err) {
-      console.error("Connection failed:", err);
-      setGatewayStatus("disconnected");
-    }
-  };
-
-  const disconnectGateway = async () => {
-    await fetch("/api/gateway/disconnect", { method: "POST" });
-    setGatewayStatus("disconnected");
-    setDevices([]);
-  };
 
   // 统计数据
   // 递归统计所有空间数量
@@ -617,10 +583,6 @@ export default function ControlPanel() {
         <Header
           currentPage={currentPage}
           gatewayStatus={gatewayStatus}
-          gatewayIP={gatewayIP}
-          onGatewayIPChange={setGatewayIP}
-          onConnect={connectGateway}
-          onDisconnect={disconnectGateway}
           currentLang={currentLang}
           onLangChange={setCurrentLang}
         />
@@ -630,9 +592,6 @@ export default function ControlPanel() {
           {currentPage === "dashboard" && (
             <HomeLayout
               gatewayStatus={gatewayStatus}
-              gatewayIP={gatewayIP}
-              onConnect={connectGateway}
-              onDisconnect={disconnectGateway}
               currentLang={currentLang}
               onLangChange={setCurrentLang}
             />
@@ -642,7 +601,6 @@ export default function ControlPanel() {
               devices={dbDevices.map(toInSonaDevice)}
               rooms={dbDevices}
               spaces={spaces}
-              gatewayIP={gatewayIP}
               gatewayStatus={gatewayStatus}
               onDeviceClick={openDeviceDrawer}
               onControl={controlDevice}
@@ -678,6 +636,9 @@ export default function ControlPanel() {
           {currentPage === "energy" && (
             <EnergyPage dbDevices={dbDevices} spaces={spaces} />
           )}
+          {currentPage === "logs" && (
+            <LogsPage />
+          )}
           {currentPage === "settings" && (
             <SettingsPage />
           )}
@@ -708,11 +669,32 @@ function Sidebar({
 }) {
   const [version, setVersion] = useState("3.0");
   const [projectName, setProjectName] = useState("inSona商照系统");
+  const [versionInfo, setVersionInfo] = useState<{
+    buildTime?: string;
+    commitHash?: string;
+    branch?: string;
+    runtime?: string;
+    nodeVersion?: string;
+    platform?: string;
+    arch?: string;
+  } | null>(null);
+  const [showVersionDetail, setShowVersionDetail] = useState(false);
 
   useEffect(() => {
     fetch("/api/system/version")
       .then((r) => r.json())
-      .then((v) => setVersion(v.version ?? "3.0"))
+      .then((v) => {
+        setVersion(v.version ?? "3.0");
+        setVersionInfo({
+          buildTime: v.buildTime,
+          commitHash: v.commitHash,
+          branch: v.branch,
+          runtime: v.runtime,
+          nodeVersion: v.nodeVersion,
+          platform: v.platform,
+          arch: v.arch,
+        });
+      })
       .catch(() => {});
     fetch("/api/settings")
       .then((r) => r.json())
@@ -728,6 +710,7 @@ function Sidebar({
     { id: "scenes", label: "场景管理", icon: "fa-magic" },
     { id: "panel-linkage", label: "面板联动", icon: "fa-link" },
     { id: "energy", label: "能耗分析", icon: "fa-chart-line" },
+    { id: "logs", label: "运行日志", icon: "fa-file-alt" },
     { id: "settings", label: "系统设置", icon: "fa-cog" },
   ];
 
@@ -745,10 +728,61 @@ function Sidebar({
             </div>
             <div>
               <h1 className="text-lg font-bold text-white">{projectName}</h1>
-              <p className="text-xs text-gray-400">Pro v{version}</p>
+              <button
+                onClick={() => setShowVersionDetail(!showVersionDetail)}
+                className="text-xs text-gray-400 hover:text-blue-400 transition-colors flex items-center gap-1"
+                title="点击查看版本详情"
+              >
+                <span>Pro v{version}</span>
+                {versionInfo?.runtime && (
+                  <span className={`px-1 py-0.5 rounded text-[10px] ${
+                    versionInfo.runtime === "production"
+                      ? "bg-green-500/20 text-green-400"
+                      : "bg-yellow-500/20 text-yellow-400"
+                  }`}>
+                    {versionInfo.runtime === "production" ? "PROD" : "DEV"}
+                  </span>
+                )}
+                <i className="fas fa-chevron-down text-[10px]" />
+              </button>
             </div>
           </div>
         </div>
+        {/* 版本详情展开区 */}
+        {showVersionDetail && versionInfo && (
+          <div className="mt-3 pt-3 border-t border-white/5 space-y-1 text-xs">
+            {versionInfo.commitHash && versionInfo.commitHash !== "unknown" && (
+              <div className="flex justify-between text-gray-400">
+                <span>提交</span>
+                <span className="font-mono text-gray-300">{versionInfo.commitHash}</span>
+              </div>
+            )}
+            {versionInfo.branch && versionInfo.branch !== "unknown" && (
+              <div className="flex justify-between text-gray-400">
+                <span>分支</span>
+                <span className="text-gray-300">{versionInfo.branch}</span>
+              </div>
+            )}
+            {versionInfo.buildTime && (
+              <div className="flex justify-between text-gray-400">
+                <span>构建</span>
+                <span className="text-gray-300">{new Date(versionInfo.buildTime).toLocaleString("zh-CN")}</span>
+              </div>
+            )}
+            {versionInfo.nodeVersion && (
+              <div className="flex justify-between text-gray-400">
+                <span>Node</span>
+                <span className="text-gray-300">{versionInfo.nodeVersion}</span>
+              </div>
+            )}
+            {versionInfo.platform && (
+              <div className="flex justify-between text-gray-400">
+                <span>平台</span>
+                <span className="text-gray-300">{versionInfo.platform}/{versionInfo.arch}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 网关状态指示 */}
@@ -795,19 +829,11 @@ function Sidebar({
 function Header({
   currentPage,
   gatewayStatus,
-  gatewayIP,
-  onGatewayIPChange,
-  onConnect,
-  onDisconnect,
   currentLang,
   onLangChange,
 }: {
   currentPage: string;
   gatewayStatus: string;
-  gatewayIP: string;
-  onGatewayIPChange: (ip: string) => void;
-  onConnect: () => void;
-  onDisconnect: () => void;
   currentLang: string;
   onLangChange: (lang: string) => void;
 }) {
@@ -822,6 +848,7 @@ function Header({
     scenes: { title: "场景管理", subtitle: "场景配置与执行" },
     "panel-linkage": { title: "面板联动", subtitle: "面板按键场景绑定" },
     energy: { title: "能耗分析", subtitle: "能耗数据与统计" },
+    logs: { title: "运行日志", subtitle: "系统运行日志实时监控" },
     settings: { title: "系统设置", subtitle: "网关连接与配置" },
   };
 
@@ -847,32 +874,6 @@ function Header({
             <p className="text-sm text-gray-400 mt-1">{pageInfo.subtitle}</p>
           </div>
           <div className="flex items-center gap-4">
-            {/* 网关快速连接 */}
-            {gatewayStatus !== "connected" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={gatewayIP}
-                  onChange={(e) => onGatewayIPChange(e.target.value)}
-                  placeholder="网关IP"
-                  className="input-field w-36 text-sm"
-                />
-                <button
-                  onClick={onConnect}
-                  disabled={gatewayStatus === "connecting" || !gatewayIP}
-                  className="btn btn-primary text-sm"
-                >
-                  {gatewayStatus === "connecting" ? "连接中..." : "连接"}
-                </button>
-              </div>
-            )}
-            {gatewayStatus === "connected" && (
-              <button onClick={onDisconnect} className="btn btn-secondary text-sm">
-                <i className="fas fa-plug" />
-                <span>断开</span>
-              </button>
-            )}
-
             <button className="btn btn-secondary relative">
               <i className="fas fa-bell" />
               <span className="badge badge-error absolute -top-1 -right-1 text-xs">3</span>
@@ -919,7 +920,6 @@ function DevicesPage({
   devices,
   rooms,
   spaces,
-  gatewayIP,
   gatewayStatus,
   onDeviceClick,
   onControl,
@@ -928,7 +928,6 @@ function DevicesPage({
   devices: InSonaDevice[];
   rooms: DbDevice[];
   spaces: SpaceNode[];
-  gatewayIP: string;
   gatewayStatus: "connected" | "disconnected" | "connecting";
   onDeviceClick: (device: InSonaDevice) => void;
   onControl: (did: string, action: string, value: number[], meshid: string, transition?: number) => Promise<void>;
@@ -3967,6 +3966,236 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
   );
 }
 
+// ==================== 运行日志页面 ====================
+interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: "debug" | "info" | "warn" | "error";
+  module: string;
+  message: string;
+}
+
+interface LogStats {
+  total: number;
+  byLevel: { debug: number; info: number; warn: number; error: number };
+  byModule: Record<string, number>;
+  oldest: string | null;
+  newest: string | null;
+}
+
+function LogsPage() {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [stats, setStats] = useState<LogStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [levelFilter, setLevelFilter] = useState<string>("");
+  const [moduleFilter, setModuleFilter] = useState<string>("");
+  const [searchText, setSearchText] = useState<string>("");
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (levelFilter) params.set("level", levelFilter);
+      if (moduleFilter) params.set("module", moduleFilter);
+      if (searchText) params.set("search", searchText);
+      params.set("limit", "500");
+      const res = await fetch(`/api/system/logs?${params.toString()}`);
+      const data = await res.json();
+      setLogs(data.logs ?? []);
+      setStats(data.stats ?? null);
+    } catch {
+      // 静默处理
+    } finally {
+      setLoading(false);
+    }
+  }, [levelFilter, moduleFilter, searchText]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  // 自动刷新
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(fetchLogs, 3000);
+    return () => clearInterval(timer);
+  }, [autoRefresh, fetchLogs]);
+
+  const handleClear = async () => {
+    if (!confirm("确认清空所有日志？")) return;
+    await fetch("/api/system/logs?action=clear");
+    fetchLogs();
+  };
+
+  const levelColors: Record<string, { bg: string; text: string; dot: string }> = {
+    debug: { bg: "bg-gray-500/10", text: "text-gray-400", dot: "bg-gray-400" },
+    info: { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400" },
+    warn: { bg: "bg-yellow-500/10", text: "text-yellow-400", dot: "bg-yellow-400" },
+    error: { bg: "bg-red-500/10", text: "text-red-400", dot: "bg-red-400" },
+  };
+
+  const modules = stats ? Object.keys(stats.byModule).sort() : [];
+
+  return (
+    <div className="fade-in space-y-4">
+      {/* 统计卡片 */}
+      {stats && (
+        <div className="grid grid-cols-5 gap-4">
+          {[
+            { label: "总日志", value: stats.total, sub: "条", color: "text-[#3b9eff]" },
+            { label: "INFO", value: stats.byLevel.info, sub: "信息", color: "text-blue-400" },
+            { label: "WARN", value: stats.byLevel.warn, sub: "警告", color: "text-yellow-400" },
+            { label: "ERROR", value: stats.byLevel.error, sub: "错误", color: "text-red-400" },
+            { label: "DEBUG", value: stats.byLevel.debug, sub: "调试", color: "text-gray-400" },
+          ].map((item) => (
+            <div key={item.label} className="bg-[#101922] rounded-lg border border-[#1c2630] p-4 flex flex-col justify-center">
+              <p className="text-xs text-[#4a5b70] mb-1">{item.label}</p>
+              <p className={`text-xl font-semibold ${item.color}`}>{item.value}</p>
+              <p className="text-xs text-[#4a5b70] mt-0.5">{item.sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 工具栏 */}
+      <div className="card">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <i className="fas fa-search text-gray-400" />
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="搜索日志内容..."
+              className="input-field flex-1 text-sm"
+              style={{ padding: "6px 12px" }}
+            />
+          </div>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="input-field text-sm"
+            style={{ padding: "6px 12px" }}
+          >
+            <option value="">全部级别</option>
+            <option value="error">ERROR</option>
+            <option value="warn">WARN</option>
+            <option value="info">INFO</option>
+            <option value="debug">DEBUG</option>
+          </select>
+          <select
+            value={moduleFilter}
+            onChange={(e) => setModuleFilter(e.target.value)}
+            className="input-field text-sm"
+            style={{ padding: "6px 12px" }}
+          >
+            <option value="">全部模块</option>
+            {modules.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`btn text-sm ${autoRefresh ? "btn-primary" : "btn-secondary"}`}
+          >
+            <i className={`fas fa-${autoRefresh ? "pause" : "play"}`} />
+            <span>{autoRefresh ? "暂停刷新" : "自动刷新"}</span>
+          </button>
+          <button onClick={fetchLogs} className="btn btn-secondary text-sm">
+            <i className="fas fa-sync-alt" />
+            <span>刷新</span>
+          </button>
+          <button onClick={handleClear} className="btn btn-secondary text-sm text-red-400 hover:text-red-300">
+            <i className="fas fa-trash" />
+            <span>清空</span>
+          </button>
+        </div>
+
+        {/* 模块分布 */}
+        {stats && modules.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4 pb-4 border-b border-white/5">
+            {modules.map((m) => (
+              <span
+                key={m}
+                className="px-2 py-1 rounded text-xs bg-white/5 text-gray-400"
+              >
+                {m}
+                <span className="ml-1 text-gray-500">({stats.byModule[m]})</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 日志列表 */}
+        <div
+          ref={scrollRef}
+          className="max-h-[600px] overflow-y-auto font-mono text-xs space-y-0.5"
+        >
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-gray-400">
+              <i className="fas fa-spinner fa-spin mr-2" />
+              加载中...
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <i className="fas fa-inbox text-3xl mb-2" />
+              <p>暂无日志</p>
+            </div>
+          ) : (
+            logs.map((log) => {
+              const color = levelColors[log.level] || levelColors.info;
+              const time = new Date(log.timestamp).toLocaleString("zh-CN", {
+                hour12: false,
+                year: "2-digit",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                fractionalSecondDigits: 3,
+              } as any);
+              const isExpanded = expandedId === log.id;
+              return (
+                <div
+                  key={log.id}
+                  className={`flex gap-2 px-2 py-1 rounded hover:bg-white/5 cursor-pointer transition-colors ${color.bg}`}
+                  onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                >
+                  <span className="text-gray-500 flex-shrink-0">{time}</span>
+                  <span
+                    className={`px-1.5 py-0 rounded flex-shrink-0 text-[10px] font-bold ${color.text} ${color.bg}`}
+                  >
+                    {log.level.toUpperCase().padEnd(5)}
+                  </span>
+                  <span className="text-cyan-400 flex-shrink-0 w-20 truncate" title={log.module}>
+                    [{log.module}]
+                  </span>
+                  <span className={`flex-1 ${isExpanded ? "whitespace-pre-wrap" : "truncate"} ${color.text}`}>
+                    {log.message}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 底部信息 */}
+        {stats && (
+          <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-gray-500">
+            <span>共 {stats.total} 条日志</span>
+            <span>
+              {stats.oldest && `最早: ${new Date(stats.oldest).toLocaleTimeString("zh-CN")}`}
+              {stats.newest && ` | 最新: ${new Date(stats.newest).toLocaleTimeString("zh-CN")}`}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ==================== 系统设置页面（多网关管理） ====================
 interface GatewayInfo {
   id: string;
@@ -4003,6 +4232,17 @@ function SettingsPage() {
   }, []);
 
   useEffect(() => { loadGateways(); }, [loadGateways]);
+
+  // 订阅 SSE 事件，实时更新网关连接状态
+  const { subscribe } = useGatewayEvents()
+  useEffect(() => {
+    const unsubscribe = subscribe((event) => {
+      if (event.type === "connected" || event.type === "disconnected") {
+        loadGateways()
+      }
+    })
+    return unsubscribe
+  }, [subscribe, loadGateways])
 
   const handleAddGateway = async (e: React.FormEvent) => {
     e.preventDefault();

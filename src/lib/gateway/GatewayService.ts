@@ -4,6 +4,7 @@ import { InSonaRequest, InSonaResponse, isGroupDevice, buildStoredDeviceId, buil
 import { prisma } from "@/lib/prisma";
 import { getLocalDate } from "@/lib/utils";
 import { logEnergyEvent } from "./EnergyLogger";
+import { logger } from "@/lib/logger";
 
 type SSEConsumer = (data: string) => void;
 
@@ -12,12 +13,12 @@ const gatewayTraceRawEnabled = process.env.GATEWAY_TRACE_RAW === "true";
 
 function debug(...args: unknown[]) {
   if (!gatewayDebugEnabled) return;
-  console.log("[Gateway]", ...args);
+  logger.debug("Gateway", ...args);
 }
 
 function traceRaw(...args: unknown[]) {
   if (!gatewayTraceRawEnabled) return;
-  console.log("[Gateway]", ...args);
+  logger.debug("Gateway:Raw", ...args);
 }
 
 class GatewayService {
@@ -28,7 +29,7 @@ class GatewayService {
   private _status: "connected" | "disconnected" | "connecting" | "reconnecting" =
     "disconnected";
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 10;
+  private maxReconnectAttempts: number = 50;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private buffer: string = "";
@@ -41,6 +42,8 @@ class GatewayService {
   private _uuidCounter: number = 0;
   private _isManualDisconnect: boolean = false; // 区分手动断开和意外断开
   private _syncing: boolean = false; // 防止并发同步
+  private _connecting: boolean = false; // 防止并发连接
+  private _connectPromise: Promise<void> | null = null; // 存储连接中的 Promise，供并发调用等待
   private _syncTimer: NodeJS.Timeout | null = null; // 自动同步定时器
 
   constructor(gatewayId: string = "default") {
@@ -82,6 +85,14 @@ class GatewayService {
   // ─── Connection ────────────────────────────────────────────────────────────
 
   connect(ip: string, port: number = 8091): Promise<void> {
+    // 防止并发连接导致 socket 竞态
+    if (this._connecting) {
+      debug("Connect already in progress, skipping");
+      debug("Connect already in progress, waiting...");
+      return this._connectPromise || Promise.reject(new Error("Connection lost"));
+    }
+    this._connecting = true;
+
     // Always disconnect any existing socket first
     if (this.socket) {
       try { this.socket.destroy(); } catch { /* ignore */ }
@@ -97,11 +108,14 @@ class GatewayService {
       this.reconnectTimer = null;
     }
     debug(`Connecting to ${ip}:${port}...`);
-    return this._doConnect();
+    logger.info("Gateway", `正在连接网关 ${ip}:${port}`);
+    this._connectPromise = this._doConnect().finally(() => { this._connecting = false; this._connectPromise = null; });
+    return this._connectPromise;
   }
 
   async disconnect() {
     debug("Disconnecting...");
+    logger.info("Gateway", `断开网关 ${this.ip}:${this.port}`);
     this._isManualDisconnect = true; // 标记为手动断开
     this._clearTimers();
     if (this.reconnectTimer) {
@@ -131,6 +145,7 @@ class GatewayService {
         this._status = "connected";
         this.reconnectAttempts = 0;
         debug(`Connected to ${this.ip}:${this.port}`);
+        logger.info("Gateway", `已连接网关 ${this.ip}:${this.port}`);
         this._broadcast({ type: "connected" });
         this._startHeartbeatMonitor();
 
@@ -160,12 +175,15 @@ class GatewayService {
             debug("Auto-sync skipped: sync already in progress");
             return;
           }
+          // syncDevices 内部已广播 sync_complete / sync_failed 事件
           this.syncDevices()
-            .then(() => {
-              debug("Auto-sync completed after connection");
+            .then((count) => {
+              debug(`Auto-sync completed after connection: ${count} devices`);
+              logger.info("Gateway", `设备同步完成: ${count} 个设备`);
             })
             .catch((err) => {
               debug("Auto-sync failed after connection:", err.message);
+              logger.error("Gateway", `设备同步失败: ${err.message}`);
             });
         }, 1000); // 延迟1秒，确保前端 SSE 已连接
 
@@ -193,6 +211,7 @@ class GatewayService {
       this.socket.on("error", (err) => {
         const wasConnecting = this._status === "connecting";
         debug(`Socket error: ${err.message}`);
+        logger.error("Gateway", `Socket 错误: ${err.message}`);
         this._handleDisconnect(err);
         if (wasConnecting) reject(new Error(`连接失败: ${err.message}`));
       });
@@ -201,6 +220,7 @@ class GatewayService {
       setTimeout(() => {
         if (this._status === "connecting") {
           debug("Connection timeout");
+          logger.error("Gateway", `连接超时 ${this.ip}:${this.port}`);
           this.socket?.destroy();
           reject(new Error("连接超时，请检查 IP 地址和网络"));
         }
@@ -228,6 +248,7 @@ class GatewayService {
     if (!this._isManualDisconnect) {
       await this._updateGatewayStatus("reconnecting");
       debug("Unexpected disconnect, will attempt to reconnect");
+      logger.warn("Gateway", `网关意外断开，准备重连${err ? `: ${err.message}` : ""}`);
       this._scheduleReconnect();
     } else {
       await this._updateGatewayStatus("disconnected");
@@ -243,7 +264,11 @@ class GatewayService {
       return;
     }
     this._status = "reconnecting";
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60000);
+    // 前10次：指数退避快速重连（1s → ~60s）
+    // 10次之后：每5分钟重试一次，持续尝试恢复
+    const delay = this.reconnectAttempts < 10
+      ? Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60000)
+      : 300_000; // 5分钟
     this.reconnectAttempts++;
     debug(`Scheduling reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`);
     this.reconnectTimer = setTimeout(() => {
@@ -379,22 +404,28 @@ class GatewayService {
     return (await this.sendRequest(req, 15000)) as InSonaResponse;
   }
 
-  async syncDevices(): Promise<void> {
+  async syncDevices(): Promise<number> {
     // 防止并发同步（同一网关的多个 syncDevices 调用）
     if (this._syncing) {
       debug("[SYNC] Already syncing, skipping duplicate call");
-      return;
+      return -1;
     }
     this._syncing = true;
 
     try {
-      await this._syncDevicesInternal();
+      const count = await this._syncDevicesInternal();
+      this._broadcast({ type: "sync_complete", deviceCount: count });
+      return count;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      this._broadcast({ type: "sync_failed", message });
+      return -1;
     } finally {
       this._syncing = false;
     }
   }
 
-  private async _syncDevicesInternal(): Promise<void> {
+  private async _syncDevicesInternal(): Promise<number> {
     debug("[SYNC] Starting device synchronization...");
 
     // 校验网关是否存在
@@ -564,8 +595,10 @@ class GatewayService {
       }
 
       debug(`[SYNC] Results: ${saveSuccess} saved, ${saveFail} failed out of ${gatewayDevices.length} total`);
+      return saveSuccess;
     } else {
       debug("[SYNC] No devices in response");
+      return 0;
     }
   }
 

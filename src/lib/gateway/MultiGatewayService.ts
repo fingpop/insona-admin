@@ -1,12 +1,12 @@
 import { GatewayService } from "./GatewayService";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 type SSEConsumer = (data: string) => void;
 
 class MultiGatewayService {
   private gateways: Map<string, GatewayService> = new Map();
   private sseConsumers: Set<SSEConsumer> = new Set();
-  private _connecting: Set<string> = new Set(); // 防止同一网关被并发连接
 
   getGateway(gatewayId: string): GatewayService | undefined {
     return this.gateways.get(gatewayId);
@@ -25,12 +25,7 @@ class MultiGatewayService {
       // Reuse existing instance but reconnect
     }
 
-    // 防止同一网关被并发连接（多个 loadAndConnectAll 同时调用时）
-    if (this._connecting.has(gatewayId)) {
-      console.log(`[MultiGateway] Connect already in progress for ${gatewayId}, skipping`);
-      return;
-    }
-    this._connecting.add(gatewayId);
+    // 防止同一网关被并发连接（由 GatewayService.connect() 内部处理）
 
     let gw = this.gateways.get(gatewayId);
     if (!gw) {
@@ -46,7 +41,7 @@ class MultiGatewayService {
     try {
       await gw.connect(ip, port);
     } finally {
-      this._connecting.delete(gatewayId);
+      // _connecting tracking removed, handled by GatewayService
     }
   }
 
@@ -78,9 +73,9 @@ class MultiGatewayService {
     for (const gw of gateways) {
       try {
         await this.connectGateway(gw.id, gw.ip, gw.port);
-        console.log(`[MultiGateway] Connected to ${gw.name || gw.ip}:${gw.port}`);
+        logger.info("Gateway", `已连接网关 ${gw.name || gw.ip}:${gw.port}`);
       } catch (err) {
-        console.error(`[MultiGateway] Failed to connect ${gw.ip}:${gw.port}:`, (err as Error).message)
+        logger.error("Gateway", `网关连接失败 ${gw.ip}:${gw.port}:`, (err as Error).message);
         // 连接状态由 GatewayService 自身管理：
         //   - _doConnect 成功回调 → connected
         //   - _handleDisconnect / _scheduleReconnect → disconnected / reconnecting
@@ -89,9 +84,9 @@ class MultiGatewayService {
     }
 
     if (gateways.length === 0) {
-      console.log("[MultiGateway] No gateways configured");
+      logger.info("Gateway", "未配置网关");
     } else {
-      console.log(`[MultiGateway] Loaded ${gateways.length} gateway(s)`);
+      logger.info("Gateway", `已加载 ${gateways.length} 个网关`);
     }
   }
 
@@ -119,4 +114,7 @@ class MultiGatewayService {
   }
 }
 
-export const multiGatewayService = new MultiGatewayService();
+// Use globalThis to survive Turbopack module re-evaluation in Next.js dev mode
+const _global = globalThis as unknown as { __multiGatewayService?: MultiGatewayService }
+export const multiGatewayService: MultiGatewayService =
+  _global.__multiGatewayService ?? (_global.__multiGatewayService = new MultiGatewayService())
