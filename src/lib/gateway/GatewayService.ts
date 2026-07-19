@@ -950,48 +950,40 @@ class GatewayService {
 
         debug(`[ENERGY] Inserting ${newPoints.length} new points (filtered ${dataPoints.length - newPoints.length} duplicates)`);
 
-        // 2. 写入新数据到明细表
-        const insertedPoints: typeof newPoints = [];
-        for (const point of newPoints) {
-          try {
-            await prisma.energyData.create({
-              data: {
-                deviceId: did as string,
-                sequence: point.sequence,
-                date: today,
-                kwh: point.kwh,
-                percent: point.percent,
-                power: power as number,
-                period: period as number,
-              }
-            });
-            insertedPoints.push(point);
-          } catch (err) {
-            if (
-              err instanceof Prisma.PrismaClientKnownRequestError &&
-              err.code === 'P2002'
-            ) {
-              continue;
-            }
-            throw err;
+        // 2. 批量写入新数据（事务包裹，减少 SQLite 写入竞争）
+        try {
+          await prisma.$transaction(
+            newPoints.map((p) =>
+              prisma.energyData.create({
+                data: {
+                  deviceId: did as string,
+                  sequence: p.sequence,
+                  date: today,
+                  kwh: p.kwh,
+                  percent: p.percent,
+                  power: power as number,
+                  period: period as number,
+                },
+              })
+            )
+          );
+        } catch (err) {
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === 'P2002'
+          ) {
+            debug(`[ENERGY] Some points already exist for device ${did}, skipping`);
+            return;
           }
+          throw err;
         }
 
-        if (insertedPoints.length === 0) {
-          debug(`[ENERGY] All pending data points were inserted concurrently for device ${did}, skipping aggregate update`);
-          return;
-        }
-
-        // 3. 计算新数据的能耗值（只累加新插入的）
-        totalKwh = insertedPoints.reduce((sum, p) => sum + p.kwh, 0);
-        maxPower = insertedPoints.reduce((max, p) => {
+        // 3. 累加新能耗值
+        totalKwh = newPoints.reduce((sum, p) => sum + p.kwh, 0);
+        maxPower = newPoints.reduce((max, p) => {
           const powerWatts = (power as number) * (p.percent / 100);
           return Math.max(max, powerWatts);
         }, 0);
-
-        // 更新 dataPoints 为新插入的数据点（用于后续聚合）
-        dataPoints.length = 0;
-        dataPoints.push(...insertedPoints);
 
         // 2. 更新小时聚合
         const existingHourly = await prisma.energyHourly.findUnique({
