@@ -45,6 +45,7 @@ class GatewayService {
   private _connecting: boolean = false; // 防止并发连接
   private _connectPromise: Promise<void> | null = null; // 存储连接中的 Promise，供并发调用等待
   private _syncTimer: NodeJS.Timeout | null = null; // 自动同步定时器
+  private _cleanupTimer: NodeJS.Timeout | null = null; // 能耗明细清理定时器
 
   constructor(gatewayId: string = "default") {
     this.gatewayId = gatewayId;
@@ -148,6 +149,7 @@ class GatewayService {
         logger.info("Gateway", `已连接网关 ${this.ip}:${this.port}`);
         this._broadcast({ type: "connected" });
         this._startHeartbeatMonitor();
+        this._startCleanupTimer();
 
         try {
           await prisma.gateway.update({
@@ -290,6 +292,10 @@ class GatewayService {
       clearTimeout(this._syncTimer);
       this._syncTimer = null;
     }
+    if (this._cleanupTimer) {
+      clearInterval(this._cleanupTimer);
+      this._cleanupTimer = null;
+    }
     this.pendingRequests.forEach(({ timeout }) => clearTimeout(timeout));
     this.pendingRequests.clear();
   }
@@ -301,6 +307,28 @@ class GatewayService {
         this._handleDisconnect();
       }
     }, 120_000);
+  }
+
+  /**
+   * 启动后台能耗明细清理任务（每 5 分钟清理 1 小时前的旧数据）
+   * 避免在每次 energy 事件中执行 deleteMany 造成写入竞争
+   */
+  private _startCleanupTimer() {
+    if (this._cleanupTimer) return;
+    this._cleanupTimer = setInterval(async () => {
+      try {
+        const cutoff = new Date(Date.now() - 3600000);
+        const result = await prisma.energyData.deleteMany({
+          where: { timestamp: { lt: cutoff } },
+        });
+        if (result.count > 0) {
+          debug(`[CLEANUP] Removed ${result.count} old energy data points`);
+        }
+      } catch (err) {
+        debug("[CLEANUP] Failed:", err);
+      }
+    }, 5 * 60 * 1000); // 5 分钟
+    this._cleanupTimer.unref(); // 不阻止进程正常退出
   }
 
   // ─── Message parsing ────────────────────────────────────────────────────────
@@ -950,13 +978,17 @@ class GatewayService {
 
         debug(`[ENERGY] Inserting ${newPoints.length} new points (filtered ${dataPoints.length - newPoints.length} duplicates)`);
 
-        // 2. 批量写入新数据（INSERT OR IGNORE 避免 P2002 整批回滚）
-        const insertValues = newPoints.map((p) =>
-          `('${did as string}', ${p.sequence}, '${today}', ${p.kwh}, ${p.percent}, ${power as number}, ${period as number})`
-        ).join(", ")
-        await prisma.$executeRawUnsafe(
-          `INSERT OR IGNORE INTO EnergyData (deviceId, sequence, date, kwh, percent, power, period) VALUES ${insertValues}`
-        )
+        // 2. 批量写入新数据（INSERT OR IGNORE 避免 P2002 整批回滚，Prisma.sql 参数化防注入）
+        const deviceId = did as string;
+        const powerNum = power as number;
+        const periodNum = period as number;
+        const values = newPoints.map((p) =>
+          Prisma.sql`(${deviceId}, ${p.sequence}, ${today}, ${p.kwh}, ${p.percent}, ${powerNum}, ${periodNum})`
+        );
+        await prisma.$executeRaw`
+          INSERT OR IGNORE INTO EnergyData (deviceId, sequence, date, kwh, percent, power, period)
+          VALUES ${Prisma.join(values)}
+        `;
 
         // 3. 累加新能耗值
         totalKwh = newPoints.reduce((sum, p) => sum + p.kwh, 0);
@@ -1038,11 +1070,7 @@ class GatewayService {
           });
         }
 
-        // 4. 清理旧明细（保留最近 1 小时）
-        const cutoff = new Date(Date.now() - 3600000);
-        await prisma.energyData.deleteMany({
-          where: { timestamp: { lt: cutoff } }
-        });
+        // 4. 清理旧明细已移至后台定时任务 _startCleanupTimer()
 
         debug(`[ENERGY] Saved ${dataPoints.length} data points, hourly=${currentHour}, total=${totalKwh.toFixed(4)}kWh`);
       } catch (err) {
