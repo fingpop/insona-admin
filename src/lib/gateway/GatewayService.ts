@@ -950,33 +950,13 @@ class GatewayService {
 
         debug(`[ENERGY] Inserting ${newPoints.length} new points (filtered ${dataPoints.length - newPoints.length} duplicates)`);
 
-        // 2. 批量写入新数据（事务包裹，减少 SQLite 写入竞争）
-        try {
-          await prisma.$transaction(
-            newPoints.map((p) =>
-              prisma.energyData.create({
-                data: {
-                  deviceId: did as string,
-                  sequence: p.sequence,
-                  date: today,
-                  kwh: p.kwh,
-                  percent: p.percent,
-                  power: power as number,
-                  period: period as number,
-                },
-              })
-            )
-          );
-        } catch (err) {
-          if (
-            err instanceof Prisma.PrismaClientKnownRequestError &&
-            err.code === 'P2002'
-          ) {
-            debug(`[ENERGY] Some points already exist for device ${did}, skipping`);
-            return;
-          }
-          throw err;
-        }
+        // 2. 批量写入新数据（INSERT OR IGNORE 避免 P2002 整批回滚）
+        const insertValues = newPoints.map((p) =>
+          `('${did as string}', ${p.sequence}, '${today}', ${p.kwh}, ${p.percent}, ${power as number}, ${period as number})`
+        ).join(", ")
+        await prisma.$executeRawUnsafe(
+          `INSERT OR IGNORE INTO EnergyData (deviceId, sequence, date, kwh, percent, power, period) VALUES ${insertValues}`
+        )
 
         // 3. 累加新能耗值
         totalKwh = newPoints.reduce((sum, p) => sum + p.kwh, 0);
@@ -1008,7 +988,7 @@ class GatewayService {
             data: {
               kwh: existingHourly.kwh + totalKwh,
               peakWatts: Math.max(existingHourly.peakWatts, maxPower),
-              dataCount: existingHourly.dataCount + dataPoints.length
+              dataCount: existingHourly.dataCount + newPoints.length
             }
           });
         } else {
@@ -1019,7 +999,7 @@ class GatewayService {
               hour: currentHour,
               kwh: totalKwh,
               peakWatts: maxPower,
-              dataCount: dataPoints.length
+              dataCount: newPoints.length
             }
           });
         }
