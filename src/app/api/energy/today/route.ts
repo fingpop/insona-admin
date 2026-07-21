@@ -17,9 +17,19 @@ export async function GET(request: Request) {
     const today = getLocalDate();
 
     if (deviceId) {
-      // 单设备查询：最近 1 小时明细 + 今天的小时聚合
-      const [recentData, hourlyData] = await Promise.all([
-        // 最近 1 小时明细
+      // 单设备查询：从 EnergyRecord 获取日汇总（准确值），
+      // EnergyHourly 用于小时粒度展示，EnergyData 用于最近明细展示
+      const [record, hourlyData, recentData] = await Promise.all([
+        // 日汇总（权威数据源，已去重）
+        prisma.energyRecord.findUnique({
+          where: { deviceId_date: { deviceId, date: today } },
+        }),
+        // 今天的小时聚合
+        prisma.energyHourly.findMany({
+          where: { deviceId, date: today },
+          orderBy: { hour: "asc" }
+        }),
+        // 最近 1 小时明细（仅用于展示）
         prisma.energyData.findMany({
           where: {
             deviceId,
@@ -31,17 +41,10 @@ export async function GET(request: Request) {
             }
           },
           orderBy: { sequence: "desc" }
-        }),
-        // 今天的小时聚合
-        prisma.energyHourly.findMany({
-          where: { deviceId, date: today },
-          orderBy: { hour: "asc" }
         })
       ]);
 
-      const recentKwh = recentData.reduce((sum, d) => sum + d.kwh, 0);
-      const hourlyKwh = hourlyData.reduce((sum, h) => sum + h.kwh, 0);
-      const totalKwh = recentKwh + hourlyKwh;
+      const totalKwh = record?.kwh ?? 0;
       const totalCarbonEmission = totalKwh * CARBON_EMISSION_FACTOR;
 
       // 填充所有24小时
@@ -59,8 +62,8 @@ export async function GET(request: Request) {
         date: today,
         totalKwh,
         totalCarbonEmission,
-        recentKwh,
-        hourlyKwh,
+        recentKwh: record?.kwh ?? 0,
+        hourlyKwh: record?.kwh ?? 0,
         hourlyData: hourlyStats,
         latestData: recentData.slice(0, 10),
       });

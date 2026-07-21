@@ -52,6 +52,7 @@ model Device {
   meshId      String?
   originalDid String?   // 原始 DID（组设备存储原始 ID，如 "00"）
   ratedPower  Float     @default(10.0) // watts, for energy reference
+  maxEnergySeq Int      @default(0)    // 已处理的最大能耗序号，用于去重
   gatewayId   String?
   gateway     Gateway?  @relation(fields: [gatewayId], references: [id])
   roomId      String?
