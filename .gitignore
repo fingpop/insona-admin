@@ -3,7 +3,8 @@ node_modules/
 # .env  # 注释掉以包含环境配置文件
 *.db    # 排除数据库文件（运行时数据不应该提交）
 prisma/*.db
-*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal*.db-journal
 .DS_Store
 tsconfig.tsbuildinfo
 
@@ -23,3 +24,8 @@ room-binding.json
 
 # Runtime data directory
 data/
+
+# SQLite temp files
+prisma/dev.db-shm
+prisma/dev.db-wal
+prisma/dev.db

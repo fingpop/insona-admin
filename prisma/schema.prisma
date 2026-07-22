@@ -53,6 +53,8 @@ model Device {
   originalDid String?   // 原始 DID（组设备存储原始 ID，如 "00"）
   ratedPower  Float     @default(10.0) // watts, for energy reference
   maxEnergySeq Int      @default(0)    // 已处理的最大能耗序号，用于去重
+  lastPower   Float     @default(0)    // 最新实际功率(W)，由能耗事件同步更新
+  lastPercent Int       @default(0)    // 最新亮度百分比(0-100)，由能耗事件同步更新
   gatewayId   String?
   gateway     Gateway?  @relation(fields: [gatewayId], references: [id])
   roomId      String?

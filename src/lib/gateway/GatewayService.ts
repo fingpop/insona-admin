@@ -1,7 +1,7 @@
 import net from "net";
 import { Prisma } from "@prisma/client";
 import { InSonaRequest, InSonaResponse, isGroupDevice, buildStoredDeviceId, buildStoredRoomId } from "@/lib/types";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaReady } from "@/lib/prisma";
 import { getLocalDate } from "@/lib/utils";
 import { logEnergyEvent } from "./EnergyLogger";
 import { logger } from "@/lib/logger";
@@ -46,6 +46,25 @@ class GatewayService {
   private _connectPromise: Promise<void> | null = null; // 存储连接中的 Promise，供并发调用等待
   private _syncTimer: NodeJS.Timeout | null = null; // 自动同步定时器
   private _cleanupTimer: NodeJS.Timeout | null = null; // 能耗明细清理定时器
+
+  // ── 能耗写入队列：将并发事件合并为单个批量事务 ──────────────────────────
+  // SQLite 写锁是数据库级别的，300 个并发事务 = 300 个连接抢一把锁
+  // 队列将所有待写事件合并为 1 个事务，消除锁竞争
+  private _pendingEnergyWrites: Array<{
+    deviceId: string;
+    dataPoints: Array<{ sequence: number; percent: number; kwh: number }>;
+    power: number;
+    period: number;
+    totalKwh: number;
+    maxPower: number;
+    lastPower: number;
+    lastPercent: number;
+    maxSeqInBatch: number;
+    today: string;
+    currentHour: number;
+  }> = [];
+  private _processingEnergyBatch: boolean = false;
+  private _energyBatchTimer: NodeJS.Timeout | null = null;
 
   constructor(gatewayId: string = "default") {
     this.gatewayId = gatewayId;
@@ -119,6 +138,19 @@ class GatewayService {
     logger.info("Gateway", `断开网关 ${this.ip}:${this.port}`);
     this._isManualDisconnect = true; // 标记为手动断开
     this._clearTimers();
+    // 断开前刷出待写入的能耗数据（避免丢失）
+    if (this._energyBatchTimer) {
+      clearTimeout(this._energyBatchTimer);
+      this._energyBatchTimer = null;
+    }
+    if (this._pendingEnergyWrites.length > 0) {
+      try {
+        await this._processEnergyBatch();
+        debug(`[ENERGY] Flushed ${this._pendingEnergyWrites.length} pending writes on disconnect`);
+      } catch (err) {
+        logger.error("Gateway", `断连时能耗刷写失败: ${err instanceof Error ? err.message : err}`);
+      }
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -852,17 +884,22 @@ class GatewayService {
   // ─── Device event handling ─────────────────────────────────────────────────
 
   private async _handleDeviceEvent(msg: Record<string, unknown>) {
-    const { did, evt, value } = msg;
+    const { did, evt, value, meshid } = msg;
 
     if (!did) {
       debug("[DEVICE EVENT] Missing device ID");
       return;
     }
 
-    // 查询设备信息
-    const device = await prisma.device.findUnique({ where: { id: did as string } });
+    // 查询设备信息（组设备在数据库中存储为 meshId:did 复合 ID）
+    let deviceId = did as string;
+    let device = await prisma.device.findUnique({ where: { id: deviceId } });
+    if (!device && isGroupDevice(deviceId) && meshid) {
+      deviceId = buildStoredDeviceId(String(meshid), deviceId);
+      device = await prisma.device.findUnique({ where: { id: deviceId } });
+    }
     if (!device) {
-      debug("[DEVICE EVENT] Device not found in database:", did);
+      debug("[DEVICE EVENT] Device not found in database:", did, "meshid:", meshid);
       return;
     }
 
@@ -887,13 +924,13 @@ class GatewayService {
       await prisma.dashboardEvent.create({
         data: {
           type: eventType,
-          deviceId: did as string,
+          deviceId: deviceId,
           message: eventMessage,
           status: "unread",
           metadata: JSON.stringify(msg),
         },
       });
-      debug(`[DEVICE EVENT] Created event for ${did}: ${eventMessage}`);
+      debug(`[DEVICE EVENT] Created event for ${deviceId}: ${eventMessage}`);
     } catch (err) {
       debug(`[DEVICE EVENT] Failed to create event:`, err);
     }
@@ -912,16 +949,29 @@ class GatewayService {
     // Log energy event to file for ALL devices
     logEnergyEvent(msg);
 
-    // 检查设备是否存在
-    const device = await prisma.device.findUnique({ where: { id: did as string } });
+    // 确保 SQLite PRAGMAs 已应用（首次调用时等待，后续调用立即返回）
+    await prismaReady;
+
+    // 检查设备是否存在（组设备在数据库中存储为 meshId:did 复合 ID）
+    let deviceId = did as string;
+    let device = await prisma.device.findUnique({ where: { id: deviceId } });
+    if (!device && isGroupDevice(deviceId) && meshid) {
+      deviceId = buildStoredDeviceId(String(meshid), deviceId);
+      device = await prisma.device.findUnique({ where: { id: deviceId } });
+    }
     if (!device) {
-      debug("[ENERGY] Device not found in database:", did);
+      debug("[ENERGY] Device not found in database:", did, "meshid:", meshid);
       return;
     }
 
     // 处理新的能耗数据格式（energy数组）
     if (energy && Array.isArray(energy) && energy.length >= 2) {
-      debug(`[ENERGY] Processing ${energy.length / 2} data points for device ${did}`);
+      // 防御性校验：energy 数组必须是偶数长度（序号+百分比成对出现）
+      if (energy.length % 2 !== 0) {
+        debug(`[ENERGY] Malformed energy array for ${deviceId}: odd length ${energy.length}, skipping`);
+        return;
+      }
+      debug(`[ENERGY] Processing ${energy.length / 2} data points for device ${deviceId}`);
 
       const now = new Date();
       const today = getLocalDate();
@@ -939,6 +989,8 @@ class GatewayService {
 
       let totalKwh = 0;
       let maxPower = 0;
+      let lastPower = 0;
+      let lastPercent = 0;
       let maxSeqInBatch = lastSeq;
 
       // 解析 energy 数组，只取 > lastSeq 的新序列
@@ -965,6 +1017,9 @@ class GatewayService {
 
         totalKwh += kwh;
         maxPower = Math.max(maxPower, actualPowerWatts);
+        // 记录最新数据点的实际功率和百分比（energy 数组按序号递增，最后一个即最新）
+        lastPower = actualPowerWatts;
+        lastPercent = percentValue;
         maxSeqInBatch = Math.max(maxSeqInBatch, sequence);
       }
 
@@ -973,110 +1028,132 @@ class GatewayService {
         return;
       }
 
-      debug(`[ENERGY] ${dataPoints.length} new data points for device ${did}, seq ${lastSeq} -> ${maxSeqInBatch}`);
+      debug(`[ENERGY] ${dataPoints.length} new data points for device ${deviceId}, seq ${lastSeq} -> ${maxSeqInBatch}`);
 
-      try {
-        const deviceId = did as string;
+      // 入队：放入批量合并队列，由 _processEnergyBatch 统一处理
+      // 避免 300 个并发事务抢同一把 SQLite 写锁
+      this._pendingEnergyWrites.push({
+        deviceId,
+        dataPoints,
+        power: power as number,
+        period: period as number,
+        totalKwh,
+        maxPower,
+        lastPower,
+        lastPercent,
+        maxSeqInBatch,
+        today,
+        currentHour,
+      });
+      this._scheduleEnergyBatch();
+    }
+  }
 
-        // 使用事务保证原子性：四个写操作要么全部成功，要么全部失败
-        // 事务内使用 upsert + increment 避免并发竞态导致的数据丢失
-        await prisma.$transaction(async (tx) => {
-          // 1. 批量写入 EnergyData（INSERT OR IGNORE 作为双重保险）
-          const powerNum = power as number;
-          const periodNum = period as number;
+  // ── 能耗批量写入 ────────────────────────────────────────────────────────
+  // 将短时间内到达的多个设备能耗事件合并为单个事务
+  // 解决 SQLite 数据库级写锁 + Prisma 多连接 = 并发超时的根本问题
+
+  private _scheduleEnergyBatch() {
+    if (this._energyBatchTimer) return; // 已调度，等待触发
+    this._energyBatchTimer = setTimeout(() => {
+      this._energyBatchTimer = null;
+      this._processEnergyBatch();
+    }, 100); // 100ms 等待窗口：让同时到达的事件合并
+    this._energyBatchTimer.unref(); // 允许进程优雅退出
+  }
+
+  private async _processEnergyBatch() {
+    if (this._processingEnergyBatch) return;
+    if (this._pendingEnergyWrites.length === 0) return;
+
+    this._processingEnergyBatch = true;
+
+    try {
+      // 取出当前批次，允许处理期间新事件继续入队
+      const batch = this._pendingEnergyWrites.splice(0);
+      const startTime = Date.now();
+
+      // 确保聚合表的 Schema 存在（首次运行时）
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS EnergyRecord (
+          id TEXT PRIMARY KEY,
+          deviceId TEXT NOT NULL,
+          date TEXT NOT NULL,
+          kwh REAL NOT NULL DEFAULT 0,
+          peakWatts REAL NOT NULL DEFAULT 0,
+          UNIQUE(deviceId, date)
+        )
+      `);
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS EnergyHourly (
+          id TEXT PRIMARY KEY,
+          deviceId TEXT NOT NULL,
+          date TEXT NOT NULL,
+          hour INTEGER NOT NULL,
+          kwh REAL NOT NULL DEFAULT 0,
+          peakWatts REAL NOT NULL DEFAULT 0,
+          dataCount INTEGER NOT NULL DEFAULT 0,
+          UNIQUE(deviceId, date, hour)
+        )
+      `);
+
+      // 单个事务处理整批 —— 300 个设备 = 1 个事务（而非 300 个）
+      await prisma.$transaction(async (tx) => {
+        for (const write of batch) {
+          const { deviceId, dataPoints, power, period, totalKwh, maxPower, lastPower, lastPercent, maxSeqInBatch, today, currentHour } = write;
+
+          // 1. 批量写入 EnergyData（重复序列自动忽略）
           const values = dataPoints.map((p) =>
-            Prisma.sql`(${deviceId}, ${p.sequence}, ${today}, ${p.kwh}, ${p.percent}, ${powerNum}, ${periodNum})`
+            Prisma.sql`(${deviceId}, ${p.sequence}, ${today}, ${p.kwh}, ${p.percent}, ${power}, ${period})`
           );
           await tx.$executeRaw`
             INSERT OR IGNORE INTO EnergyData (deviceId, sequence, date, kwh, percent, power, period)
             VALUES ${Prisma.join(values)}
           `;
 
-          // 2. 更新 Device.maxEnergySeq（持久化的去重标记，不会被清理）
-          await tx.device.update({
-            where: { id: deviceId },
-            data: { maxEnergySeq: maxSeqInBatch }
-          });
+          // 2. 更新 Device（能耗事件到达时设备一定已存在，用纯 UPDATE 避免触发 NOT NULL 约束）
+          await tx.$executeRaw`
+            UPDATE Device SET
+              maxEnergySeq = MAX(maxEnergySeq, ${maxSeqInBatch}),
+              lastPower = ${lastPower},
+              lastPercent = ${lastPercent}
+            WHERE id = ${deviceId}
+          `;
 
-          // 3. 原子更新小时聚合（upsert + increment 避免竞态）
-          // peakWatts 需要 Math.max，无法用 increment，在事务内先读后写
-          const existingHourly = await tx.energyHourly.findUnique({
-            where: {
-              deviceId_date_hour: {
-                deviceId,
-                date: today,
-                hour: currentHour
-              }
-            }
-          });
+          // 3. UPSERT EnergyHourly
+          const hourlyId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+          await tx.$executeRaw`
+            INSERT INTO EnergyHourly (id, deviceId, date, hour, kwh, peakWatts, dataCount)
+            VALUES (${hourlyId}, ${deviceId}, ${today}, ${currentHour}, ${totalKwh}, ${maxPower}, ${dataPoints.length})
+            ON CONFLICT(deviceId, date, hour) DO UPDATE SET
+              kwh = EnergyHourly.kwh + excluded.kwh,
+              peakWatts = MAX(EnergyHourly.peakWatts, excluded.peakWatts),
+              dataCount = EnergyHourly.dataCount + excluded.dataCount
+          `;
 
-          if (existingHourly) {
-            await tx.energyHourly.update({
-              where: {
-                deviceId_date_hour: {
-                  deviceId,
-                  date: today,
-                  hour: currentHour
-                }
-              },
-              data: {
-                kwh: { increment: totalKwh },
-                peakWatts: Math.max(existingHourly.peakWatts, maxPower),
-                dataCount: { increment: dataPoints.length }
-              }
-            });
-          } else {
-            await tx.energyHourly.create({
-              data: {
-                deviceId,
-                date: today,
-                hour: currentHour,
-                kwh: totalKwh,
-                peakWatts: maxPower,
-                dataCount: dataPoints.length
-              }
-            });
-          }
+          // 4. UPSERT EnergyRecord
+          const recordId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+          await tx.$executeRaw`
+            INSERT INTO EnergyRecord (id, deviceId, date, kwh, peakWatts)
+            VALUES (${recordId}, ${deviceId}, ${today}, ${totalKwh}, ${maxPower})
+            ON CONFLICT(deviceId, date) DO UPDATE SET
+              kwh = EnergyRecord.kwh + excluded.kwh,
+              peakWatts = MAX(EnergyRecord.peakWatts, excluded.peakWatts)
+          `;
+        }
+      }, { maxWait: 15000, timeout: 30000 });
 
-          // 4. 原子更新日汇总（upsert + increment 避免竞态）
-          const existingRecord = await tx.energyRecord.findUnique({
-            where: {
-              deviceId_date: {
-                deviceId,
-                date: today
-              }
-            }
-          });
+      debug(`[ENERGY] Batch saved: ${batch.length} devices in ${Date.now() - startTime}ms`);
 
-          if (existingRecord) {
-            await tx.energyRecord.update({
-              where: {
-                deviceId_date: {
-                  deviceId,
-                  date: today
-                }
-              },
-              data: {
-                kwh: { increment: totalKwh },
-                peakWatts: Math.max(existingRecord.peakWatts, maxPower)
-              }
-            });
-          } else {
-            await tx.energyRecord.create({
-              data: {
-                deviceId,
-                date: today,
-                kwh: totalKwh,
-                peakWatts: maxPower
-              }
-            });
-          }
-        });
-
-        debug(`[ENERGY] Saved ${dataPoints.length} data points, hourly=${currentHour}, total=${totalKwh.toFixed(4)}kWh`);
-      } catch (err) {
-        debug(`[ENERGY] Failed to save energy data:`, err);
+      // 如果处理期间有新事件入队，继续处理下一批
+      if (this._pendingEnergyWrites.length > 0) {
+        this._scheduleEnergyBatch();
       }
+    } catch (err) {
+      debug(`[ENERGY] Batch save failed:`, err);
+      // 失败不重试：maxEnergySeq 未更新，下次网关上报会重新包含这些数据
+    } finally {
+      this._processingEnergyBatch = false;
     }
   }
 
