@@ -8,7 +8,7 @@ function parseJsonArray(value: string | null): number[] {
   try { return JSON.parse(value ?? "[]") as number[]; } catch { return []; }
 }
 
-function enrichDevices(devices: { id: string; funcs: string | null; groups: string | null }[], includeEnergy = false) {
+function enrichDevices(devices: { id: string; funcs: string | null; groups: string | null; lastPower: number; lastPercent: number }[], includeEnergy = false) {
   if (!includeEnergy) {
     return devices.map((d) => ({
       ...d,
@@ -24,34 +24,24 @@ function enrichDevices(devices: { id: string; funcs: string | null; groups: stri
     where: { date: today, deviceId: { in: devices.map((d) => d.id) } },
   });
 
-  const recentEnergyData = prisma.energyData.findMany({
-    where: {
-      timestamp: { gte: new Date(Date.now() - 3600000) },
-      deviceId: { in: devices.map((d) => d.id) }
-    },
-    orderBy: { sequence: "desc" },
-  });
-
-  return Promise.all([energyRecords, recentEnergyData]).then(([records, data]) => {
-    const energyMap = new Map<string, { totalKwh: number; latestPower: number }>();
+  return energyRecords.then((records) => {
+    const energyMap = new Map<string, number>();
     for (const record of records) {
-      energyMap.set(record.deviceId, { totalKwh: record.kwh, latestPower: record.peakWatts });
+      energyMap.set(record.deviceId, record.kwh);
     }
-    for (const d of data) {
-      const existing = energyMap.get(d.deviceId);
-      if (existing) {
-        existing.latestPower = d.power;
-      } else {
-        energyMap.set(d.deviceId, { totalKwh: 0, latestPower: d.power });
-      }
-    }
-    return devices.map((d) => ({
-      ...d,
-      funcs: parseJsonArray(d.funcs),
-      groups: parseJsonArray(d.groups),
-      power: energyMap.get(d.id)?.latestPower ?? null,
-      todayKwh: energyMap.get(d.id)?.totalKwh ?? null,
-    }));
+    return devices.map((d) => {
+      // lastPower 已经是实际功率（GatewayService 中 = 额定功率 × 百分比），直接使用
+      const realTimePower = d.lastPower > 0
+        ? Math.round(d.lastPower * 10) / 10
+        : null;
+      return {
+        ...d,
+        funcs: parseJsonArray(d.funcs),
+        groups: parseJsonArray(d.groups),
+        power: realTimePower,
+        todayKwh: energyMap.get(d.id) ?? null,
+      };
+    });
   });
 }
 
