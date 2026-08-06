@@ -59,7 +59,6 @@ export async function GET(request: Request) {
 
   const devices = await prisma.device.findMany({
     where,
-    include: { room: true },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -79,10 +78,10 @@ export async function GET(request: Request) {
       lastPower: true,
       lastPercent: true,
       roomId: true,
-      room: true,
       gatewayId: true,
       createdAt: true,
       updatedAt: true,
+      room: { select: { id: true, name: true, type: true, parentId: true } },
     },
   });
 
@@ -117,8 +116,30 @@ export async function POST() {
     }
 
     const devices = await prisma.device.findMany({
-      include: { room: true },
       orderBy: { name: "asc" },
+      select: {
+        id: true,
+        pid: true,
+        ver: true,
+        type: true,
+        alive: true,
+        name: true,
+        gatewayName: true,
+        func: true,
+        funcs: true,
+        value: true,
+        groups: true,
+        meshId: true,
+        originalDid: true,
+        ratedPower: true,
+        lastPower: true,
+        lastPercent: true,
+        roomId: true,
+        gatewayId: true,
+        createdAt: true,
+        updatedAt: true,
+        room: { select: { id: true, name: true, type: true, parentId: true } },
+      },
     });
 
     const enriched = await enrichDevices(devices, true);
