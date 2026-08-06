@@ -18,6 +18,7 @@ import {
   LabelList,
 } from "recharts";
 import { getLocalDateOffset } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type DateRange = "today" | "7d" | "30d";
 
@@ -87,11 +88,10 @@ interface EnergyTrendData {
 
 interface HomeLayoutProps {
   gatewayStatus: "connected" | "disconnected" | "connecting";
-  currentLang: string;
-  onLangChange: (lang: string) => void;
 }
 
-export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }: HomeLayoutProps) {
+export default function HomeLayout({ gatewayStatus }: HomeLayoutProps) {
+  const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [roomStatuses, setRoomStatuses] = useState<RoomStatus[]>([]);
@@ -220,7 +220,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
       {/* 快捷场景栏 */}
       {scenes.length > 0 && (
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-3">快捷场景</h2>
+          <h2 className="text-sm font-medium text-white mb-3">{t("dashboard.quickScenes")}</h2>
           <div className="flex gap-3 flex-wrap">
             {scenes.map((scene) => (
               <button
@@ -242,27 +242,27 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
         {stats && (
           <>
             <StatCard
-              label="设备总数"
+              label={t("dashboard.totalDevices")}
               value={stats.totalDevices}
-              sub={`在线率 ${(stats.onlineRate * 100).toFixed(0)}%`}
+              sub={`${t("dashboard.onlineRate")} ${(stats.onlineRate * 100).toFixed(0)}%`}
               color="text-[#3b9eff]"
             />
             <StatCard
-              label="在线设备"
+              label={t("dashboard.onlineDevices")}
               value={stats.onlineDevices}
-              sub={`离线 ${stats.offlineDevices}`}
+              sub={`${t("dashboard.offline")} ${stats.offlineDevices}`}
               color="text-green-400"
             />
             <StatCard
-              label="今日能耗"
+              label={t("dashboard.todayEnergy")}
               value={`${stats.todayKwh.toFixed(2)} kWh`}
-              sub={`环比 ${(stats.energyGrowthRate * 100).toFixed(1)}%`}
+              sub={`MoM ${(stats.energyGrowthRate * 100).toFixed(1)}%`}
               color="text-yellow-400"
             />
             <StatCard
-              label="峰值功率"
+              label={t("dashboard.peakPower")}
               value={`${stats.todayPeakWatts.toFixed(0)} W`}
-              sub="今日峰值"
+              sub={t("dashboard.todayPeak")}
               color="text-red-400"
             />
           </>
@@ -270,15 +270,15 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
         {carbonEmissions && (
           <>
             <StatCard
-              label="碳排放"
+              label={t("dashboard.carbon")}
               value={`${carbonEmissions.totalCarbon.toFixed(2)} kg`}
-              sub="CO₂当量"
+              sub={t("dashboard.co2Equivalent")}
               color="text-cyan-400"
             />
             <StatCard
-              label="等效植树"
+              label={t("dashboard.treeEquivalent")}
               value={carbonEmissions.treesNeeded.toFixed(1)}
-              sub="棵/年"
+              sub={t("dashboard.treesPerYear")}
               color="text-emerald-400"
             />
           </>
@@ -288,7 +288,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
       {/* Row 2: 空间状态卡片 */}
       {roomStatuses.length > 0 && (
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-3">空间状态</h2>
+          <h2 className="text-sm font-medium text-white mb-3">{t("dashboard.roomStatus")}</h2>
           <div className="grid grid-cols-6 gap-3">
             {roomStatuses.map((room) => (
               <div
@@ -300,7 +300,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                   <span className={`w-2 h-2 rounded-full ${room.onlineCount > 0 ? "bg-green-500" : "bg-gray-500"}`} />
                 </div>
                 <div className="text-xs text-[#4a5b70]">
-                  <span className="text-[#8a9baf]">{room.onlineCount}</span> / {room.deviceCount} 设备
+                  <span className="text-[#8a9baf]">{room.onlineCount}</span> / {room.deviceCount} {t("dashboard.deviceUnit")}
                 </div>
               </div>
             ))}
@@ -312,7 +312,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
       <div className="grid grid-cols-3 gap-4">
         {/* 今日能耗趋势 */}
         <div className="col-span-2 bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-2">今日能耗趋势</h2>
+          <h2 className="text-sm font-medium text-white mb-2">{t("dashboard.energyTrend")}</h2>
           <div className="h-[300px]">
             {hourlyEnergy.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -329,7 +329,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                   <Tooltip
                     contentStyle={{ backgroundColor: "#0d1520", border: "1px solid #1c2630", borderRadius: "8px" }}
                     labelStyle={{ color: "#8a9baf" }}
-                    formatter={(value: number) => [`${value.toFixed(3)} kWh`, "能耗"]}
+                    formatter={(value: number) => [`${value.toFixed(3)} kWh`, t("sidebar.energy")]}
                   />
                   <Area
                     type="monotone"
@@ -337,19 +337,19 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                     stroke="#3b82f6"
                     strokeWidth={2}
                     fill="url(#colorToday)"
-                    name="能耗 (kWh)"
+                    name={`${t("sidebar.energy")} (kWh)`}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-[#4a5b70]">暂无数据</div>
+              <div className="h-full flex items-center justify-center text-[#4a5b70]">{t("dashboard.noData")}</div>
             )}
           </div>
         </div>
 
         {/* 设备类型分布 */}
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-2">设备分布</h2>
+          <h2 className="text-sm font-medium text-white mb-2">{t("dashboard.deviceTypeDist")}</h2>
           <div className="h-[300px] flex items-center justify-center">
             {deviceTypeDist.length > 0 ? (
               (() => {
@@ -360,7 +360,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                 const curtainTotal = curtainData.reduce((sum, d) => sum + d.count, 0);
                 const otherData = filteredData.filter((d) => d.type !== 1860 && d.type !== 1862);
                 const finalData = curtainTotal > 0
-                  ? [...otherData, { type: 1860, label: "开合帘", count: curtainTotal, online: 0 }]
+                  ? [...otherData, { type: 1860, label: t("deviceIcon.curtain"), count: curtainTotal, online: 0 }]
                   : otherData;
 
                 return (
@@ -386,7 +386,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                 );
               })()
             ) : (
-              <div className="h-full flex items-center justify-center text-[#4a5b70]">暂无数据</div>
+              <div className="h-full flex items-center justify-center text-[#4a5b70]">{t("dashboard.noData")}</div>
             )}
           </div>
         </div>
@@ -396,7 +396,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
       <div className="grid grid-cols-3 gap-4">
         {/* 房间能耗排行 */}
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-2">能耗排行</h2>
+          <h2 className="text-sm font-medium text-white mb-2">{t("dashboard.roomEnergy")}</h2>
           <div className="h-[250px]">
             {roomEnergyRanking.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -406,7 +406,7 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                   <YAxis dataKey="roomName" type="category" stroke="#4a5b70" fontSize={10} width={60} />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#0d1520", border: "1px solid #1c2630", borderRadius: "8px" }}
-                    formatter={(value: number) => [`${value.toFixed(2)} kWh`, "能耗"]}
+                    formatter={(value: number) => [`${value.toFixed(2)} kWh`, t("sidebar.energy")]}
                   />
                   <Bar dataKey="kwh" fill="#3b9eff">
                     <LabelList dataKey="kwh" position="right" formatter={(v: number) => `${v.toFixed(1)}`} fontSize={10} fill="#8a9baf" />
@@ -414,14 +414,14 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-[#4a5b70]">暂无数据</div>
+              <div className="h-full flex items-center justify-center text-[#4a5b70]">{t("dashboard.noData")}</div>
             )}
           </div>
         </div>
 
         {/* 总能耗趋势 */}
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-2">总能耗趋势</h2>
+          <h2 className="text-sm font-medium text-white mb-2">{t("dashboard.totalEnergyTrend")}</h2>
           <div className="h-[250px]">
             {energyTrend.length > 0 ? (
               <div className="h-full flex items-end justify-between gap-1 px-2 pb-6 relative">
@@ -453,14 +453,14 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
                 })}
               </div>
             ) : (
-              <div className="h-full flex items-center justify-center text-[#4a5b70]">暂无数据</div>
+              <div className="h-full flex items-center justify-center text-[#4a5b70]">{t("dashboard.noData")}</div>
             )}
           </div>
         </div>
 
         {/* 最近事件 */}
         <div className="bg-[#101922] rounded-lg border border-[#1c2630] p-4">
-          <h2 className="text-sm font-medium text-white mb-2">最近事件</h2>
+          <h2 className="text-sm font-medium text-white mb-2">{t("dashboard.recentEvents")}</h2>
           <div className="h-[250px] overflow-y-auto">
             {recentEvents.length > 0 ? (
               <div className="space-y-2">
@@ -476,8 +476,8 @@ export default function HomeLayout({ gatewayStatus, currentLang, onLangChange }:
             ) : (
               <div className="h-full flex items-center justify-center text-[#4a5b70]">
                 <div className="text-center">
-                  <p className="text-sm">等待事件...</p>
-                  <p className="text-xs mt-1">设备状态变化将在此显示</p>
+                  <p className="text-sm">Waiting for events...</p>
+                  <p className="text-xs mt-1">Device status changes will be shown here</p>
                 </div>
               </div>
             )}

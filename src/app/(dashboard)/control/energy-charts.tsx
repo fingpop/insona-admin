@@ -1,6 +1,7 @@
 "use client";
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface EnergyData {
   date: string;
@@ -10,6 +11,7 @@ export interface EnergyData {
 
 // ==================== 能耗图表组件 ====================
 export function EnergyChart({ data }: { data: EnergyData[] }) {
+  const { t } = useTranslation();
   const maxValue = Math.max(...data.map((d) => d.value));
   const minValue = Math.min(...data.map((d) => d.value));
   const range = maxValue - minValue || 1;
@@ -24,7 +26,7 @@ export function EnergyChart({ data }: { data: EnergyData[] }) {
             <div
               className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-500 hover:to-blue-300"
               style={{ height: `${height}px`, minHeight: "20px" }}
-              title={`${item.date}: ${item.value.toFixed(3)} kWh\n碳排放: ${carbonEmission.toFixed(3)} kgCO₂e`}
+              title={`${item.date}: ${item.value.toFixed(3)} kWh\nCarbon: ${carbonEmission.toFixed(3)} kgCO₂e`}
             />
             <span className="text-xs text-gray-500">{item.date}</span>
           </div>
@@ -73,6 +75,7 @@ export function EnergyBarChart({ data }: { data: { name: string; value: number }
 
 // 今日能耗 - 小时趋势图 (Recharts)
 export function TodayEnergyHourlyChart({ data }: { data: any[] }) {
+  const { t } = useTranslation();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data}>
@@ -98,7 +101,7 @@ export function TodayEnergyHourlyChart({ data }: { data: any[] }) {
           stroke="#3b82f6"
           strokeWidth={2}
           fill="url(#colorToday)"
-          name="能耗(kWh)"
+          name={`${t("sidebar.energy")}(kWh)`}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -107,6 +110,7 @@ export function TodayEnergyHourlyChart({ data }: { data: any[] }) {
 
 // 今日能耗 - 空间对比柱状图 (Recharts)
 export function TodayEnergyRoomChart({ data }: { data: any[] }) {
+  const { t } = useTranslation();
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
@@ -126,13 +130,13 @@ export function TodayEnergyRoomChart({ data }: { data: any[] }) {
             border: "none",
             borderRadius: "8px",
           }}
-          formatter={(value: number) => [`${value.toFixed(4)} kWh`, "能耗"]}
+          formatter={(value: number) => [`${value.toFixed(4)} kWh`, t("sidebar.energy")]}
         />
         <Bar
           dataKey="totalKwh"
           fill="#3b82f6"
           radius={[8, 8, 0, 0]}
-          name="能耗(kWh)"
+          name={`${t("sidebar.energy")}(kWh)`}
         />
       </BarChart>
     </ResponsiveContainer>

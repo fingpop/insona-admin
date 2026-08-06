@@ -3,11 +3,13 @@
 import { useState, useMemo, useCallback } from "react";
 import { useDeviceGroups, GroupDevice } from "@/hooks/useDeviceGroups";
 import { DEVICE_TYPE_LABELS } from "@/lib/types";
+import { useTranslation } from "@/hooks/useTranslation";
 
 // 提取原始 DID（从 meshId:did 格式中取 did 部分）
 const getRawDid = (id: string): string => id.includes(":") ? id.split(":")[1] : id;
 
 export default function GroupsPage() {
+  const { t } = useTranslation();
   const [filterMeshId, setFilterMeshId] = useState<string>("");
   const [filterAlive, setFilterAlive] = useState<number | undefined>(undefined);
   const [filterRoomId, setFilterRoomId] = useState<string>("");
@@ -62,7 +64,7 @@ export default function GroupsPage() {
   // 获取设备对应的房间名
   const getRoomName = (device: GroupDevice) => {
     if (device.room?.name) return device.room.name;
-    if (device.roomId) return `房间 ${device.roomId}`;
+    if (device.roomId) return t("groups.roomDefault", { roomId: device.roomId });
     return "-";
   };
 
@@ -78,27 +80,27 @@ export default function GroupsPage() {
   // 解析 func 获取设备功能
   const getDeviceFunc = (func: number): string => {
     const labels: Record<number, string> = {
-      2: "开关",
-      3: "调光",
-      4: "双色温",
-      5: "HSL彩灯",
-      9: "面板",
-      10: "传感器",
+      2: t("func.0"),
+      3: t("func.1"),
+      4: t("func.2"),
+      5: t("deviceIcon.hslLight"),
+      9: t("deviceType.1218"),
+      10: t("deviceType.1344"),
     };
-    return labels[func] || `功能${func}`;
+    return labels[func] || `Function ${func}`;
   };
 
   // 控制组设备
   const handleControl = async (did: string, action: string, value: number[], meshid: string) => {
     if (!meshid) {
-      alert("缺少 Mesh ID，无法控制设备");
+      alert(t("groups.missingMeshId"));
       return;
     }
     setControlling(true);
     try {
       await controlGroup(did, action, value, meshid);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "控制失败");
+      alert(err instanceof Error ? err.message : t("groups.controlFailed"));
     } finally {
       setControlling(false);
     }
@@ -127,7 +129,7 @@ export default function GroupsPage() {
       setEditingDevice(null);
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "保存失败");
+      alert(err instanceof Error ? err.message : t("groups.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -135,13 +137,13 @@ export default function GroupsPage() {
 
   // 删除组设备
   const handleDelete = async (deviceId: string) => {
-    if (!confirm("确认删除该组设备？删除后无法恢复。")) return;
+    if (!confirm(t("groups.confirmDelete"))) return;
     try {
       const res = await fetch(`/api/devices/${deviceId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("删除失败");
+      if (!res.ok) throw new Error(t("groups.deleteFailed"));
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "删除失败");
+      alert(err instanceof Error ? err.message : t("groups.deleteFailed"));
     }
   };
 
@@ -151,16 +153,16 @@ export default function GroupsPage() {
       const res = await fetch("/api/devices", { method: "POST" });
       const data = await res.json();
       if (res.status === 503) {
-        alert("网关连接失败，请检查网关配置后重试");
+        alert(t("groups.gatewayConnectFailed"));
         return;
       }
       if (data.error) {
-        alert(`同步失败: ${data.error}`);
+        alert(t("groups.syncFailed", { error: data.error }));
         return;
       }
       refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "同步失败");
+      alert(err instanceof Error ? err.message : t("groups.syncFailed", { error: "" }));
     }
   };
 
@@ -199,7 +201,7 @@ export default function GroupsPage() {
                 value={filterMeshId}
                 onChange={(e) => setFilterMeshId(e.target.value)}
               >
-                <option value="">全部 Mesh</option>
+                <option value="">{t("groups.allMesh")}</option>
                 {meshIds.map((meshId) => (
                   <option key={meshId} value={meshId}>
                     Mesh {meshId}
@@ -219,9 +221,9 @@ export default function GroupsPage() {
                 else setFilterAlive(0);
               }}
             >
-              <option value="">全部状态</option>
-              <option value="online">在线</option>
-              <option value="offline">离线</option>
+              <option value="">{t("groups.allStatus")}</option>
+              <option value="online">{t("common.online")}</option>
+              <option value="offline">{t("common.offline")}</option>
             </select>
 
             {/* 位置筛选 */}
@@ -232,7 +234,7 @@ export default function GroupsPage() {
                 value={filterRoomId}
                 onChange={(e) => setFilterRoomId(e.target.value)}
               >
-                <option value="">全部位置</option>
+                <option value="">{t("groups.allLocations")}</option>
                 {roomOptions.map(([id, name]) => (
                   <option key={id} value={id}>
                     {name}
@@ -245,7 +247,7 @@ export default function GroupsPage() {
             <div className="relative flex-1" style={{ maxWidth: "300px" }}>
               <input
                 type="text"
-                placeholder="搜索组ID或名称..."
+                placeholder={t("groups.search")}
                 className="input-field pr-10 w-full"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
@@ -264,7 +266,7 @@ export default function GroupsPage() {
               className="btn btn-secondary"
             >
               <i className="fas fa-times"></i>
-              <span>清除筛选</span>
+              <span>{t("groups.clearFilter")}</span>
             </button>
           </div>
 
@@ -272,7 +274,7 @@ export default function GroupsPage() {
           <div className="flex gap-2 ml-4">
             <button onClick={handleSync} className="btn btn-primary">
               <i className="fas fa-sync-alt"></i>
-              <span>同步组设备</span>
+              <span>{t("groups.sync")}</span>
             </button>
           </div>
         </div>
@@ -280,16 +282,16 @@ export default function GroupsPage() {
         {/* 统计信息 */}
         <div className="flex items-center justify-between mb-6">
           <div className="text-sm text-gray-400">
-            共 <span className="text-blue-400 font-medium">{filteredGroups.length}</span> 个组设备
+            {t("groups.totalCount", { count: filteredGroups.length })}
           </div>
           <div className="flex gap-3 text-sm text-gray-400">
             <span>
               <span className="status-indicator status-online mr-1"></span>
-              {filteredGroups.filter((g) => g.alive === 1).length} 个在线
+              {t("groups.onlineCount", { count: filteredGroups.filter((g) => g.alive === 1).length })}
             </span>
             <span>
               <span className="status-indicator status-offline mr-1"></span>
-              {filteredGroups.filter((g) => g.alive === 0).length} 个离线
+              {t("groups.offlineCount", { count: filteredGroups.filter((g) => g.alive === 0).length })}
             </span>
           </div>
         </div>
@@ -298,7 +300,7 @@ export default function GroupsPage() {
         {loading ? (
           <div className="text-center py-12 text-gray-400">
             <i className="fas fa-spinner fa-spin text-2xl"></i>
-            <p className="mt-2">加载中...</p>
+            <p className="mt-2">{t("common.loading")}</p>
           </div>
         ) : error ? (
           <div className="text-center py-12 text-red-400">
@@ -307,19 +309,19 @@ export default function GroupsPage() {
           </div>
         ) : filteredGroups.length === 0 ? (
           <div className="text-center text-gray-400 py-8">
-            暂无组设备
+            {t("groups.noData")}
           </div>
         ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>设备ID</th>
-                <th>设备名称</th>
-                <th>位置</th>
-                <th>状态</th>
-                <th>Mesh</th>
-                <th>类型</th>
-                <th>操作</th>
+                <th>{t("groups.deviceId")}</th>
+                <th>{t("groups.deviceName")}</th>
+                <th>{t("groups.location")}</th>
+                <th>{t("groups.status")}</th>
+                <th>{t("groups.mesh")}</th>
+                <th>{t("groups.type")}</th>
+                <th>{t("groups.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -327,7 +329,7 @@ export default function GroupsPage() {
                 <tr key={`${device.meshId}-${device.id}`}>
                   <td><code className="text-blue-400">{(device.displayId || device.id).toUpperCase()}</code></td>
                   <td className="font-medium text-white">
-                    {device.name || device.gatewayName || `组设备 ${device.displayId || device.id}`}
+                    {device.name || device.gatewayName || t("groups.groupDeviceId", { id: device.displayId || device.id })}
                   </td>
                   <td className="text-gray-400">
                     <i className="fas fa-map-marker-alt mr-1 text-blue-400"></i>
@@ -336,12 +338,12 @@ export default function GroupsPage() {
                   <td>
                     <span className={`status-indicator ${device.alive === 1 ? "status-online" : "status-offline"}`} />
                     <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
-                      {device.alive === 1 ? "在线" : "离线"}
+                      {device.alive === 1 ? t("common.online") : t("common.offline")}
                     </span>
                   </td>
                   <td className="text-gray-400 text-sm">{device.meshId || "-"}</td>
                   <td className="text-gray-400">
-                    {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}
+                    {DEVICE_TYPE_LABELS[device.type] || t("groups.typeNum", { type: device.type })}
                     <p className="text-xs text-gray-500">{getDeviceFunc(device.func)}</p>
                   </td>
                   <td>
@@ -351,7 +353,7 @@ export default function GroupsPage() {
                         onClick={() => setControllingDevice(device)}
                         disabled={!device.meshId || device.alive !== 1}
                         className="btn btn-secondary text-sm px-3 py-1"
-                        title="控制"
+                        title={t("groups.controlAction")}
                       >
                         <i className="fas fa-sliders-h"></i>
                       </button>
@@ -360,7 +362,7 @@ export default function GroupsPage() {
                       <button
                         onClick={() => setEditingDevice(device)}
                         className="btn btn-secondary text-sm px-3 py-1"
-                        title="编辑属性"
+                        title={t("groups.editProps")}
                       >
                         <i className="fas fa-edit"></i>
                       </button>
@@ -369,7 +371,7 @@ export default function GroupsPage() {
                       <button
                         onClick={() => handleDelete(device.id)}
                         className="btn btn-secondary text-sm px-3 py-1 text-red-400 hover:text-red-300"
-                        title="删除组设备"
+                        title={t("groups.deleteGroupDevice")}
                       >
                         <i className="fas fa-trash"></i>
                       </button>
@@ -417,6 +419,7 @@ function EditGroupModal({
   onClose: () => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(device.name || device.gatewayName || "");
   const [roomId, setRoomId] = useState(device.roomId || "");
 
@@ -429,11 +432,11 @@ function EditGroupModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative w-[480px] bg-[#0d1520] rounded-lg border border-[#1c2630] p-6">
-        <h3 className="text-lg font-medium text-white mb-6">编辑组设备</h3>
+        <h3 className="text-lg font-medium text-white mb-6">{t("groups.editGroupDevice")}</h3>
 
         <div className="mb-4 p-3 bg-gray-700/50 rounded">
           <p className="text-sm text-gray-400">
-            组ID: <span className="text-blue-400 font-mono">{device.id.toUpperCase()}</span>
+            {t("groups.groupId")}: <span className="text-blue-400 font-mono">{device.id.toUpperCase()}</span>
           </p>
           <p className="text-sm text-gray-400">
             Mesh: <span className="text-gray-300">{device.meshId || "-"}</span>
@@ -442,33 +445,33 @@ function EditGroupModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t("groups.deviceName")}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="请输入设备名称"
+              placeholder={t("groups.deviceNamePlaceholder")}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t("groups.deviceLocation")}</label>
             <input
               type="text"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="请输入位置或留空"
+              placeholder={t("groups.locationPlaceholder")}
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn btn-secondary">
-              取消
+              {t("common.cancel")}
             </button>
             <button type="submit" disabled={saving} className="btn btn-primary">
-              {saving ? "保存中..." : "保存"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </form>
@@ -493,6 +496,7 @@ function ControlGroupDrawer({
   controlling: boolean;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   if (!device) return null;
 
   const valueArr: number[] = useMemo(() => {
@@ -531,14 +535,14 @@ function ControlGroupDrawer({
   const hasColorTemp = device.func === 4;
 
   const funcLabels: Record<number, string> = {
-    2: "开关",
-    3: "调光",
-    4: "双色温",
-    5: "HSL彩灯",
-    9: "面板",
-    10: "传感器",
+    2: t("func.0"),
+    3: t("func.1"),
+    4: t("func.2"),
+    5: t("deviceIcon.hslLight"),
+    9: t("deviceType.1218"),
+    10: t("deviceType.1344"),
   };
-  const funcLabel = funcLabels[device.func] || `功能${device.func}`;
+  const funcLabel = funcLabels[device.func] || t("groups.funcUnknown", { func: device.func });
 
   return (
     <>
@@ -559,7 +563,7 @@ function ControlGroupDrawer({
         <div className="p-6 overflow-y-auto h-full">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">组设备控制</h3>
+            <h3 className="text-xl font-bold text-white">{t("groups.controlAction")}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
               <i className="fas fa-times text-xl" />
             </button>
@@ -569,10 +573,10 @@ function ControlGroupDrawer({
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 mb-6">
             <div className="flex items-center justify-between mb-1">
               <h4 className="text-lg font-bold text-white">
-                {device.name || device.gatewayName || `组设备 ${(device.displayId || rawDid).toUpperCase()}`}
+                {device.name || device.gatewayName || t("groups.groupDeviceId", { id: (device.displayId || rawDid).toUpperCase() })}
               </h4>
               <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
-                {device.alive === 1 ? "在线" : "离线"}
+                {device.alive === 1 ? t("common.online") : t("common.offline")}
               </span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
@@ -590,14 +594,14 @@ function ControlGroupDrawer({
           {loading ? (
             <div className="text-center py-12 text-gray-400">
               <i className="fas fa-spinner fa-spin text-2xl"></i>
-              <p className="mt-2">加载设备数据中...</p>
+              <p className="mt-2">{t("groups.loadingData")}</p>
             </div>
           ) : (
             <div>
               {/* 开关控制 — func=2/3/4 均显示 */}
               <div className="mb-6">
                 <label className="block text-sm text-gray-400 mb-3">
-                  <i className="fas fa-power-off mr-1"></i>开关
+                  <i className="fas fa-power-off mr-1"></i>{t("groups.switchControl")}
                 </label>
                 <div className="flex gap-3">
                   <button
@@ -614,7 +618,7 @@ function ControlGroupDrawer({
                         : "bg-gray-600 hover:bg-gray-700"
                     } disabled:bg-gray-600 disabled:cursor-not-allowed`}
                   >
-                    <i className="fas fa-power-off mr-2"></i>开
+                    <i className="fas fa-power-off mr-2"></i>{t("common.on")}
                   </button>
                   <button
                     onClick={async () => {
@@ -630,7 +634,7 @@ function ControlGroupDrawer({
                         : "bg-gray-600 hover:bg-gray-700"
                     } disabled:bg-gray-600 disabled:cursor-not-allowed`}
                   >
-                    <i className="fas fa-power-off mr-2"></i>关
+                    <i className="fas fa-power-off mr-2"></i>{t("common.off")}
                   </button>
                 </div>
               </div>
@@ -639,7 +643,7 @@ function ControlGroupDrawer({
               {isDimmable && (
                 <div className="mb-6">
                   <label className="block text-sm text-gray-400 mb-3">
-                    <i className="fas fa-sun mr-1"></i>亮度
+                    <i className="fas fa-sun mr-1"></i>{t("groups.brightnessLabel")}
                   </label>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-gray-500">0%</span>
@@ -663,12 +667,12 @@ function ControlGroupDrawer({
               {hasColorTemp && (
                 <div className="mb-6">
                   <label className="block text-sm text-gray-400 mb-3">
-                    <i className="fas fa-thermometer-half mr-1"></i>色温
+                    <i className="fas fa-thermometer-half mr-1"></i>{t("groups.colorTempLabel")}
                   </label>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-500">冷光</span>
+                    <span className="text-xs text-gray-500">{t("groups.coldLight")}</span>
                     <span className="text-amber-400 font-mono text-lg">{colorTempValue}%</span>
-                    <span className="text-xs text-gray-500">暖光</span>
+                    <span className="text-xs text-gray-500">{t("groups.warmLight")}</span>
                   </div>
                   <input
                     type="range"
@@ -687,10 +691,10 @@ function ControlGroupDrawer({
               <div className="mt-6 p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
                 <p className="text-xs text-gray-500 text-center">
                   <i className="fas fa-info-circle mr-1"></i>
-                  拖动滑块松开后即时发送控制命令
+                  {t("groups.dragToControl")}
                 </p>
                 <p className="text-xs text-gray-500 text-center mt-1">
-                  组设备控制将影响该 Mesh 下所有组内设备
+                  {t("groups.groupControlHint")}
                 </p>
               </div>
             </div>

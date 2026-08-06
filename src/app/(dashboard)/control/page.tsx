@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useGatewayEvents } from "@/hooks/useGatewayEvents";
+import { useTranslation } from "@/hooks/useTranslation";
 import { InSonaDevice, DEVICE_TYPE_LABELS, isGroupDevice, parseStoredDeviceId } from "@/lib/types";
 import { getLocalDateOffset } from "@/lib/utils";
 import HomeLayout from "./home-layout";
@@ -226,6 +227,7 @@ function parseGatewayStatusValue(rawStatus: number[] | undefined, rawValue: numb
 
 // ==================== 主组件 ====================
 export default function ControlPanel() {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState<string>("dashboard");
   const [gatewayStatus, setGatewayStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
   const [dbDevices, setDbDevices] = useState<DbDevice[]>([]);
@@ -233,7 +235,6 @@ export default function ControlPanel() {
   const [devices, setDevices] = useState<InSonaDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<InSonaDevice | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [currentLang, setCurrentLang] = useState("zh-CN");
 
   // 当 devices 列表更新时，同步 selectedDevice 的最新状态
   // Use ref to avoid re-triggering on selectedDevice changes
@@ -552,7 +553,7 @@ export default function ControlPanel() {
   };
 
   const getDeviceRoomName = (roomId: string) => {
-    if (!roomId) return "未绑定";
+    if (!roomId) return t("devices.notBound");
     // 递归查找空间名称
     const findSpaceName = (items: SpaceNode[], id: string): string | null => {
       for (const item of items) {
@@ -565,7 +566,7 @@ export default function ControlPanel() {
       return null;
     };
     const name = findSpaceName(spaces, roomId);
-    return name || `空间${roomId}`;
+    return name || t("devices.space", { roomId });
   };
 
   return (
@@ -583,8 +584,6 @@ export default function ControlPanel() {
         <Header
           currentPage={currentPage}
           gatewayStatus={gatewayStatus}
-          currentLang={currentLang}
-          onLangChange={setCurrentLang}
         />
 
         {/* 页面内容 - 系统首页使用独立页面 */}
@@ -592,8 +591,6 @@ export default function ControlPanel() {
           {currentPage === "dashboard" && (
             <HomeLayout
               gatewayStatus={gatewayStatus}
-              currentLang={currentLang}
-              onLangChange={setCurrentLang}
             />
           )}
           {currentPage === "devices" && (
@@ -667,8 +664,9 @@ function Sidebar({
   onNavigate: (page: string) => void;
   gatewayStatus: string;
 }) {
+  const { t } = useTranslation();
   const [version, setVersion] = useState("3.0");
-  const [projectName, setProjectName] = useState("inSona商照系统");
+  const [projectName, setProjectName] = useState("inSona");
   const [versionInfo, setVersionInfo] = useState<{
     buildTime?: string;
     commitHash?: string;
@@ -698,20 +696,20 @@ function Sidebar({
       .catch(() => {});
     fetch("/api/settings")
       .then((r) => r.json())
-      .then((data) => setProjectName(data.projectName ?? "inSona商照系统"))
+      .then((data) => setProjectName(data.projectName ?? "inSona"))
       .catch(() => {});
   }, []);
   const navItems = [
-    { id: "dashboard", label: "系统首页", icon: "fa-home" },
-    { id: "devices", label: "设备管理", icon: "fa-lightbulb" },
-    { id: "groups", label: "组设备", icon: "fa-object-group" },
-    { id: "rooms", label: "空间管理", icon: "fa-layer-group" },
-    { id: "automation", label: "自动化", icon: "fa-clock" },
-    { id: "scenes", label: "场景管理", icon: "fa-magic" },
-    { id: "panel-linkage", label: "面板联动", icon: "fa-link" },
-    { id: "energy", label: "能耗分析", icon: "fa-chart-line" },
-    { id: "logs", label: "运行日志", icon: "fa-file-alt" },
-    { id: "settings", label: "系统设置", icon: "fa-cog" },
+    { id: "dashboard", label: t("sidebar.home"), icon: "fa-home" },
+    { id: "devices", label: t("sidebar.devices"), icon: "fa-lightbulb" },
+    { id: "groups", label: t("sidebar.groups"), icon: "fa-object-group" },
+    { id: "rooms", label: t("sidebar.rooms"), icon: "fa-layer-group" },
+    { id: "automation", label: t("sidebar.automation"), icon: "fa-clock" },
+    { id: "scenes", label: t("sidebar.scenes"), icon: "fa-magic" },
+    { id: "panel-linkage", label: t("sidebar.panelLinkage"), icon: "fa-link" },
+    { id: "energy", label: t("sidebar.energy"), icon: "fa-chart-line" },
+    { id: "logs", label: t("sidebar.logs"), icon: "fa-file-alt" },
+    { id: "settings", label: t("sidebar.settings"), icon: "fa-cog" },
   ];
 
   return (
@@ -731,7 +729,7 @@ function Sidebar({
               <button
                 onClick={() => setShowVersionDetail(!showVersionDetail)}
                 className="text-xs text-gray-400 hover:text-blue-400 transition-colors flex items-center gap-1"
-                title="点击查看版本详情"
+                title={t("sidebar.clickToViewVersion")}
               >
                 <span>Pro v{version}</span>
                 {versionInfo?.runtime && (
@@ -753,19 +751,19 @@ function Sidebar({
           <div className="mt-3 pt-3 border-t border-white/5 space-y-1 text-xs">
             {versionInfo.commitHash && versionInfo.commitHash !== "unknown" && (
               <div className="flex justify-between text-gray-400">
-                <span>提交</span>
+                <span>{t("sidebar.commit")}</span>
                 <span className="font-mono text-gray-300">{versionInfo.commitHash}</span>
               </div>
             )}
             {versionInfo.branch && versionInfo.branch !== "unknown" && (
               <div className="flex justify-between text-gray-400">
-                <span>分支</span>
+                <span>{t("sidebar.branch")}</span>
                 <span className="text-gray-300">{versionInfo.branch}</span>
               </div>
             )}
             {versionInfo.buildTime && (
               <div className="flex justify-between text-gray-400">
-                <span>构建</span>
+                <span>{t("sidebar.build")}</span>
                 <span className="text-gray-300">{new Date(versionInfo.buildTime).toLocaleString("zh-CN")}</span>
               </div>
             )}
@@ -777,7 +775,7 @@ function Sidebar({
             )}
             {versionInfo.platform && (
               <div className="flex justify-between text-gray-400">
-                <span>平台</span>
+                <span>{t("sidebar.platform")}</span>
                 <span className="text-gray-300">{versionInfo.platform}/{versionInfo.arch}</span>
               </div>
             )}
@@ -790,7 +788,7 @@ function Sidebar({
         <div className="flex items-center gap-2">
           <span className={`status-indicator ${gatewayStatus === "connected" ? "status-online" : gatewayStatus === "connecting" ? "status-warning" : "status-offline"}`} />
           <span className="text-xs text-gray-400">
-            {gatewayStatus === "connected" ? "网关已连接" : gatewayStatus === "connecting" ? "连接中..." : "网关未连接"}
+            {gatewayStatus === "connected" ? t("sidebar.gatewayConnected") : gatewayStatus === "connecting" ? t("sidebar.gatewayConnecting") : t("sidebar.gatewayDisconnected")}
           </span>
         </div>
       </div>
@@ -816,7 +814,7 @@ function Sidebar({
             <i className="fas fa-user text-white" />
           </div>
           <div>
-            <p className="text-sm font-medium text-white">管理员</p>
+            <p className="text-sm font-medium text-white">{t("sidebar.admin")}</p>
             <p className="text-xs text-gray-400">admin@insona.com</p>
           </div>
         </div>
@@ -829,27 +827,24 @@ function Sidebar({
 function Header({
   currentPage,
   gatewayStatus,
-  currentLang,
-  onLangChange,
 }: {
   currentPage: string;
   gatewayStatus: string;
-  currentLang: string;
-  onLangChange: (lang: string) => void;
 }) {
+  const { t, lang, setLang } = useTranslation();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   const pageTitles: Record<string, { title: string; subtitle: string }> = {
-    dashboard: { title: "系统首页", subtitle: "实时监控与数据概览" },
-    devices: { title: "设备管理", subtitle: "设备列表与控制" },
-    groups: { title: "组设备", subtitle: "设备组列表与控制" },
-    rooms: { title: "空间管理", subtitle: "房间与区域管理" },
-    automation: { title: "自动化", subtitle: "定时任务管理" },
-    scenes: { title: "场景管理", subtitle: "场景配置与执行" },
-    "panel-linkage": { title: "面板联动", subtitle: "面板按键场景绑定" },
-    energy: { title: "能耗分析", subtitle: "能耗数据与统计" },
-    logs: { title: "运行日志", subtitle: "系统运行日志实时监控" },
-    settings: { title: "系统设置", subtitle: "网关连接与配置" },
+    dashboard: { title: t("header.dashboard.title"), subtitle: t("header.dashboard.subtitle") },
+    devices: { title: t("header.devices.title"), subtitle: t("header.devices.subtitle") },
+    groups: { title: t("header.groups.title"), subtitle: t("header.groups.subtitle") },
+    rooms: { title: t("header.rooms.title"), subtitle: t("header.rooms.subtitle") },
+    automation: { title: t("header.automation.title"), subtitle: t("header.automation.subtitle") },
+    scenes: { title: t("header.scenes.title"), subtitle: t("header.scenes.subtitle") },
+    "panel-linkage": { title: t("header.panelLinkage.title"), subtitle: t("header.panelLinkage.subtitle") },
+    energy: { title: t("header.energy.title"), subtitle: t("header.energy.subtitle") },
+    logs: { title: t("header.logs.title"), subtitle: t("header.logs.subtitle") },
+    settings: { title: t("header.settings.title"), subtitle: t("header.settings.subtitle") },
   };
 
   const pageInfo = pageTitles[currentPage] || pageTitles.dashboard;
@@ -857,7 +852,6 @@ function Header({
   const languages = [
     { code: "zh-CN", name: "简体中文" },
     { code: "en-US", name: "English" },
-    { code: "ja-JP", name: "日本語" },
   ];
 
   return (
@@ -866,7 +860,7 @@ function Header({
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2 text-sm">
-              <span className="text-gray-400">项目中心</span>
+              <span className="text-gray-400">{t("header.projectCenter")}</span>
               <span className="text-gray-600">/</span>
               <span className="text-blue-400">{pageInfo.title}</span>
             </div>
@@ -887,22 +881,22 @@ function Header({
                 onClick={() => setLangMenuOpen(!langMenuOpen)}
               >
                 <i className="fas fa-globe" />
-                <span>{languages.find((l) => l.code === currentLang)?.name || "简体中文"}</span>
+                <span>{languages.find((l) => l.code === lang)?.name || "简体中文"}</span>
                 <i className="fas fa-chevron-down text-xs" />
               </button>
               {langMenuOpen && (
                 <div className="lang-menu active">
-                  {languages.map((lang) => (
+                  {languages.map((language) => (
                     <div
-                      key={lang.code}
-                      className={`lang-menu-item ${currentLang === lang.code ? "active" : ""}`}
+                      key={language.code}
+                      className={`lang-menu-item ${lang === language.code ? "active" : ""}`}
                       onClick={() => {
-                        onLangChange(lang.code);
+                        setLang(language.code as "zh-CN" | "en-US");
                         setLangMenuOpen(false);
                       }}
                     >
-                      <i className={`fas ${currentLang === lang.code ? "fa-check" : "fa-circle"}`} style={{ fontSize: "8px", opacity: currentLang === lang.code ? 1 : 0 }} />
-                      <span>{lang.name}</span>
+                      <i className={`fas ${lang === language.code ? "fa-check" : "fa-circle"}`} style={{ fontSize: "8px", opacity: lang === language.code ? 1 : 0 }} />
+                      <span>{language.name}</span>
                     </div>
                   ))}
                 </div>
@@ -933,6 +927,7 @@ function DevicesPage({
   onControl: (did: string, action: string, value: number[], meshid: string, transition?: number) => Promise<void>;
   onSync: () => void;
 }) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState({ status: "", search: "", meshId: "", roomId: "" });
   const [activeTab, setActiveTab] = useState<"lights" | "panels" | "sensors" | "other">("lights");
   const [editingDevice, setEditingDevice] = useState<InSonaDevice | null>(null);
@@ -956,9 +951,9 @@ function DevicesPage({
     const dbDevice = rooms.find((d) => d.id === device.did);
     if (dbDevice?.roomId) {
       const space = flatSpaces.find((s) => s.id === dbDevice.roomId);
-      return space?.name || `空间${dbDevice.roomId}`;
+      return space?.name || t("devices.space", { roomId: dbDevice.roomId });
     }
-    return "未绑定";
+    return t("devices.notBound");
   };
 
   // 获取唯一的 meshId 列表
@@ -999,13 +994,13 @@ function DevicesPage({
 
   // 删除设备
   const handleDeleteDevice = async (deviceId: string) => {
-    if (!confirm("确认删除该设备？删除后无法恢复。")) return;
+    if (!confirm(t("devices.deleteConfirm"))) return;
     try {
       const res = await fetch(`/api/devices/${deviceId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("删除失败");
+      if (!res.ok) throw new Error(t("devices.deleteFailed"));
       onSync();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "删除失败");
+      alert(err instanceof Error ? err.message : t("devices.deleteFailed"));
     }
   };
 
@@ -1023,18 +1018,18 @@ function DevicesPage({
       const syncRes = await fetch("/api/devices", { method: "POST" });
       const syncData = await syncRes.json();
       if (syncRes.status === 503) {
-        alert("网关连接失败，请检查网关配置后重试");
+        alert(t("devices.gatewayConnectFailed"));
         return;
       }
       if (syncData.error) {
-        alert(`同步失败: ${syncData.error}`);
+        alert(t("devices.syncFailed", { error: syncData.error }));
         return;
       }
 
       // 刷新数据
       onSync();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "同步失败");
+      alert(err instanceof Error ? err.message : t("errors.syncFailed"));
     } finally {
       setSyncing(false);
     }
@@ -1057,12 +1052,12 @@ function DevicesPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("保存失败");
+      if (!res.ok) throw new Error(t("devices.saveFailed"));
       setEditingDevice(null);
       // 刷新数据
       onSync();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "保存失败");
+      alert(err instanceof Error ? err.message : t("devices.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -1070,20 +1065,25 @@ function DevicesPage({
 
   // 导入数据
   const handleImportData = async () => {
-    if (!confirm("确认导入 insona-devices.json 的数据到数据库？\n这将创建/更新房间和设备信息。")) return;
+    if (!confirm(t("devices.importConfirm"))) return;
     setImporting(true);
     try {
       const res = await fetch("/api/import-data", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        alert(`导入失败: ${data.error || data.details}`);
+        alert(t("devices.importFailed", { error: data.error || data.details }));
         return;
       }
-      alert(`导入成功！\n房间总数: ${data.summary.totalRooms}\n设备总数: ${data.summary.totalDevices}\n在线设备: ${data.summary.onlineDevices}\n离线设备: ${data.summary.offlineDevices}`);
+      alert(t("devices.importSuccess", {
+        totalRooms: data.summary.totalRooms,
+        totalDevices: data.summary.totalDevices,
+        onlineDevices: data.summary.onlineDevices,
+        offlineDevices: data.summary.offlineDevices,
+      }));
       // 刷新数据
       onSync();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "导入失败");
+      alert(err instanceof Error ? err.message : t("errors.importFailed"));
     } finally {
       setImporting(false);
     }
@@ -1102,7 +1102,7 @@ function DevicesPage({
               value={filter.roomId}
               onChange={(e) => setFilter({ ...filter, roomId: e.target.value })}
             >
-              <option value="">全部位置</option>
+              <option value="">{t("devices.allLocations")}</option>
               {flatSpaces.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -1115,9 +1115,9 @@ function DevicesPage({
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value })}
             >
-              <option value="">全部状态</option>
-              <option value="online">在线</option>
-              <option value="offline">离线</option>
+              <option value="">{t("devices.allStatus")}</option>
+              <option value="online">{t("devices.online")}</option>
+              <option value="offline">{t("devices.offline")}</option>
             </select>
 
             {/* Mesh 筛选 */}
@@ -1128,7 +1128,7 @@ function DevicesPage({
                 value={filter.meshId}
                 onChange={(e) => setFilter({ ...filter, meshId: e.target.value })}
               >
-                <option value="">全部 Mesh</option>
+                <option value="">{t("devices.allMesh")}</option>
                 {meshIds.map((meshId) => (
                   <option key={meshId} value={meshId}>Mesh {meshId}</option>
                 ))}
@@ -1139,7 +1139,7 @@ function DevicesPage({
             <div className="relative flex-1" style={{ maxWidth: "300px" }}>
               <input
                 type="text"
-                placeholder="搜索设备名称或ID..."
+                placeholder={t("devices.search")}
                 className="input-field pr-10 w-full"
                 value={filter.search}
                 onChange={(e) => setFilter({ ...filter, search: e.target.value })}
@@ -1153,7 +1153,7 @@ function DevicesPage({
               className="btn btn-secondary"
             >
               <i className="fas fa-times"></i>
-              <span>清除筛选</span>
+              <span>{t("devices.clearFilter")}</span>
             </button>
           </div>
 
@@ -1163,10 +1163,10 @@ function DevicesPage({
               onClick={handleImportData}
               disabled={importing}
               className="btn btn-secondary"
-              title="从 insona-devices.json 导入数据"
+              title={t("devices.importTitle")}
             >
               <i className={`fas fa-file-import ${importing ? "animate-pulse" : ""}`}></i>
-              <span>{importing ? "导入中..." : "导入数据"}</span>
+              <span>{importing ? t("devices.importing") : t("devices.import")}</span>
             </button>
             <button
               onClick={handleSync}
@@ -1174,7 +1174,7 @@ function DevicesPage({
               className="btn btn-primary"
             >
               <i className={`fas fa-sync-alt ${syncing ? "animate-spin" : ""}`}></i>
-              <span>{syncing ? "同步中..." : "同步设备"}</span>
+              <span>{syncing ? t("devices.syncing") : t("devices.sync")}</span>
             </button>
           </div>
         </div>
@@ -1183,10 +1183,10 @@ function DevicesPage({
         <div className="flex items-center justify-between mb-6">
           <div className="flex gap-2">
             {[
-              { id: "lights", label: "灯光设备", icon: "fa-lightbulb" },
-              { id: "panels", label: "控制面板", icon: "fa-tablet-alt" },
-              { id: "sensors", label: "传感器", icon: "fa-broadcast-tower" },
-              { id: "other", label: "其他设备", icon: "fa-cog" },
+              { id: "lights", label: t("devices.lights"), icon: "fa-lightbulb" },
+              { id: "panels", label: t("devices.panels"), icon: "fa-tablet-alt" },
+              { id: "sensors", label: t("devices.sensors"), icon: "fa-broadcast-tower" },
+              { id: "other", label: t("devices.other"), icon: "fa-cog" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1199,7 +1199,7 @@ function DevicesPage({
             ))}
           </div>
           <div className="text-sm text-gray-400">
-            共 <span className="text-blue-400 font-medium">{filteredDevices.length}</span> 个设备
+            {t("devices.totalCount", { count: filteredDevices.length })}
           </div>
         </div>
 
@@ -1207,15 +1207,15 @@ function DevicesPage({
         <table className="data-table">
           <thead>
             <tr>
-              <th>设备ID</th>
-              <th>设备名称</th>
-              <th>位置</th>
+              <th>{t("devices.id")}</th>
+              <th>{t("devices.name")}</th>
+              <th>{t("devices.room")}</th>
               <th>Groups</th>
-              <th>状态</th>
+              <th>{t("devices.status")}</th>
               <th>Mesh</th>
-              <th>今日能耗</th>
-              <th>功率</th>
-              <th>操作</th>
+              <th>{t("devices.todayEnergy")}</th>
+              <th>{t("devices.power")}</th>
+              <th>{t("devices.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -1236,7 +1236,7 @@ function DevicesPage({
                         {device.groups.map((groupId, idx) => {
                           // 查找对应的房间名称
                           const room = rooms.find(r => r.roomId === String(groupId));
-                          const roomName = room?.gatewayName || `组${groupId}`;
+                          const roomName = room?.gatewayName || t("devices.group", { groupId });
                           return (
                             <span
                               key={idx}
@@ -1255,7 +1255,7 @@ function DevicesPage({
                   <td>
                     <span className={`status-indicator ${device.alive === 1 ? "status-online" : "status-offline"}`} />
                     <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
-                      {device.alive === 1 ? "在线" : "离线"}
+                      {device.alive === 1 ? t("devices.online") : t("devices.offline")}
                     </span>
                   </td>
                   <td className="text-gray-400 text-sm">{device.meshid || "-"}</td>
@@ -1270,21 +1270,21 @@ function DevicesPage({
                       <button
                         onClick={() => onDeviceClick(device)}
                         className="btn btn-secondary text-sm px-3 py-1"
-                        title="控制"
+                        title={t("devices.control")}
                       >
                         <i className="fas fa-sliders-h"></i>
                       </button>
                       <button
                         onClick={() => setEditingDevice(device)}
                         className="btn btn-secondary text-sm px-3 py-1"
-                        title="编辑属性"
+                        title={t("devices.editProps")}
                       >
                         <i className="fas fa-edit"></i>
                       </button>
                       <button
                         onClick={() => handleDeleteDevice(device.did)}
                         className="btn btn-secondary text-sm px-3 py-1 text-red-400 hover:text-red-300"
-                        title="删除设备"
+                        title={t("devices.delete")}
                       >
                         <i className="fas fa-trash"></i>
                       </button>
@@ -1300,13 +1300,13 @@ function DevicesPage({
                     {devices.length === 0 ? (
                       <span className="text-gray-400">
                         {gatewayStatus === "connected"
-                          ? "暂无设备数据，请点击右上角「同步设备」获取网关中的设备列表"
-                          : "网关未连接，请在设置页面配置网关IP并建立连接"}
+                          ? t("devices.noData")
+                          : t("devices.gatewayDisconnected")}
                       </span>
                     ) : (
                       <span className="text-gray-400">
-                        未找到符合条件的设备
-                        <span className="text-gray-500 text-sm ml-2">（尝试调整筛选条件或切换标签页）</span>
+                        {t("devices.noMatch")}
+                        <span className="text-gray-500 text-sm ml-2">{t("devices.tryAdjust")}</span>
                       </span>
                     )}
                   </div>
@@ -1348,6 +1348,7 @@ function EditDeviceModal({
   onSave: (data: { name: string; roomId: string }) => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const dbDevice = rooms.find((d) => d.id === device.did);
   const [name, setName] = useState(device.name || dbDevice?.gatewayName || "");
   const [roomId, setRoomId] = useState(dbDevice?.roomId || "");
@@ -1361,29 +1362,29 @@ function EditDeviceModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative w-[480px] bg-[#0d1520] rounded-lg border border-[#1c2630] p-6">
-        <h3 className="text-lg font-medium text-white mb-6">编辑设备属性</h3>
+        <h3 className="text-lg font-medium text-white mb-6">{t("devices.editTitle")}</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 设备名称 */}
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">设备名称</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t("devices.name")}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="请输入设备名称"
+              placeholder={t("devices.enterName")}
             />
           </div>
 
           {/* 设备位置 */}
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">设备位置</label>
+            <label className="block text-sm font-medium text-gray-400 mb-2">{t("devices.location")}</label>
             <select
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               className="w-full bg-[#101922] border border-[#1c2630] text-white rounded-md px-3 py-2 focus:border-blue-500 focus:outline-none"
             >
-              <option value="">未绑定</option>
+              <option value="">{t("devices.notBound")}</option>
               {spaces.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -1395,13 +1396,13 @@ function EditDeviceModal({
           {/* Groups 信息展示 */}
           {device.groups && device.groups.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">设备所属组 (Groups)</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t("devices.belongsToGroups")}</label>
               <div className="bg-[#101922] border border-[#1c2630] rounded-md px-3 py-2">
                 <div className="flex gap-2 flex-wrap">
                   {device.groups.map((groupId, idx) => {
                     // 查找对应的房间名称
                     const room = rooms.find(r => r.roomId === String(groupId));
-                    const roomName = room?.gatewayName || `组${groupId}`;
+                    const roomName = room?.gatewayName || t("devices.group", { groupId });
                     return (
                       <span
                         key={idx}
@@ -1415,7 +1416,7 @@ function EditDeviceModal({
                   })}
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  * Groups 值对应房间 ID,表示设备所属的空间组
+                  {t("devices.groupsHint")}
                 </p>
               </div>
             </div>
@@ -1428,14 +1429,14 @@ function EditDeviceModal({
               onClick={onClose}
               className="flex-1 px-4 py-2 bg-[#1c2630] text-gray-300 rounded-md hover:bg-[#253040] transition-colors whitespace-nowrap"
             >
-              取消
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              {saving ? "保存中..." : "保存"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </form>
@@ -1454,6 +1455,7 @@ function RoomsPage({
   devices: DbDevice[];
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"hierarchy" | "devices" | "transfer" | "batch">("hierarchy");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [selectedSpace, setSelectedSpace] = useState<SpaceNode | null>(null);
@@ -1513,11 +1515,11 @@ function RoomsPage({
   const getSpaceTypeName = (type: string) => {
     switch (type) {
       case "building":
-        return "建筑";
+        return t("rooms.typeBuilding");
       case "floor":
-        return "楼层";
+        return t("rooms.typeFloor");
       default:
-        return "房间";
+        return t("rooms.typeRoom");
     }
   };
 
@@ -1594,7 +1596,7 @@ function RoomsPage({
           <i className={`fas ${getSpaceIcon(node.type)} text-blue-400 text-sm`} />
           <span className="text-sm text-white flex-1 truncate">{node.name}</span>
           {node.deviceCount !== undefined && (
-            <span className="text-xs text-gray-400">{node.deviceCount}设备</span>
+            <span className="text-xs text-gray-400">{t("rooms.deviceCountLabel", { count: node.deviceCount })}</span>
           )}
         </div>
         {hasChildren && isExpanded && (
@@ -1640,7 +1642,7 @@ function RoomsPage({
         onRefresh();
       } else {
         const err = await res.json();
-        alert(err.error || "编辑失败");
+        alert(err.error || t("rooms.saveFailed"));
       }
     } finally {
       setLoading(false);
@@ -1650,7 +1652,7 @@ function RoomsPage({
   // 批量移动空间
   const handleBatchMove = async () => {
     if (batchSelected.size === 0) return;
-    if (!confirm(`确定将 ${batchSelected.size} 个空间移动到目标父级？`)) return;
+    if (!confirm(t("rooms.confirmBatchMove", { count: batchSelected.size }))) return;
     setLoading(true);
     try {
       const res = await fetch("/api/spaces/batch-move", {
@@ -1664,14 +1666,14 @@ function RoomsPage({
         onRefresh();
       } else {
         const err = await res.json();
-        alert(err.error || "批量移动失败");
+        alert(err.error || t("rooms.batchMoveFailed"));
       }
     } finally {
       setLoading(false);
     }
   };
   const handleDeleteSpace = async (spaceId: string) => {
-    if (!confirm("确认删除该空间？")) return;
+    if (!confirm(t("rooms.confirmDelete"))) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/rooms/${spaceId}`, { method: "DELETE" });
@@ -1680,7 +1682,7 @@ function RoomsPage({
         setSelectedSpace(null);
         onRefresh();
       } else {
-        alert(data.error || "删除失败");
+        alert(data.error || t("rooms.deleteFailed"));
       }
     } finally {
       setLoading(false);
@@ -1768,30 +1770,30 @@ function RoomsPage({
               className={`tab-button ${activeTab === "hierarchy" ? "active" : ""}`}
               onClick={() => setActiveTab("hierarchy")}
             >
-              <i className="fas fa-sitemap mr-2"></i>层级结构
+              <i className="fas fa-sitemap mr-2"></i>{t("rooms.hierarchy")}
             </button>
             <button
               className={`tab-button ${activeTab === "devices" ? "active" : ""}`}
               onClick={() => setActiveTab("devices")}
             >
-              <i className="fas fa-link mr-2"></i>设备绑定
+              <i className="fas fa-link mr-2"></i>{t("rooms.deviceBinding")}
             </button>
             <button
               className={`tab-button ${activeTab === "transfer" ? "active" : ""}`}
               onClick={() => setActiveTab("transfer")}
             >
-              <i className="fas fa-exchange-alt mr-2"></i>批量转移
+              <i className="fas fa-exchange-alt mr-2"></i>{t("rooms.batchTransfer")}
             </button>
             <button
               className={`tab-button ${activeTab === "batch" ? "active" : ""}`}
               onClick={() => setActiveTab("batch")}
             >
-              <i className="fas fa-layer-group mr-2"></i>批量操作
+              <i className="fas fa-layer-group mr-2"></i>{t("rooms.batchOperations")}
             </button>
           </div>
           <button onClick={() => setShowAddModal(true)} className="btn btn-primary">
             <i className="fas fa-plus"></i>
-            <span>新建空间</span>
+            <span>{t("rooms.addSpace")}</span>
           </button>
         </div>
 
@@ -1802,7 +1804,7 @@ function RoomsPage({
             <div className="lg:col-span-1">
               <div className="p-4 bg-white/5 rounded-lg">
                 <h4 className="text-sm font-bold text-white mb-4 flex items-center justify-between">
-                  <span>空间树</span>
+                  <span>{t("rooms.spaceTree")}</span>
                   <button
                     onClick={expandAll}
                     className="text-xs text-blue-400 hover:text-blue-300"
@@ -1814,7 +1816,7 @@ function RoomsPage({
                   {spaces.length > 0 ? (
                     spaces.map((space) => renderTreeNode(space))
                   ) : (
-                    <p className="text-center text-gray-400 py-8">暂无空间，请创建空间</p>
+                    <p className="text-center text-gray-400 py-8">{t("rooms.noSpaces")}</p>
                   )}
                 </div>
               </div>
@@ -1824,7 +1826,7 @@ function RoomsPage({
             <div className="lg:col-span-3">
               <div className="p-6 bg-white/5 rounded-lg">
                 <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-lg font-bold text-white">空间详情</h4>
+                  <h4 className="text-lg font-bold text-white">{t("rooms.spaceDetails")}</h4>
                   {selectedSpace && (
                     <div className="flex gap-2">
                       <button
@@ -1832,14 +1834,14 @@ function RoomsPage({
                         className="btn btn-secondary text-sm"
                       >
                         <i className="fas fa-edit"></i>
-                        <span>编辑</span>
+                        <span>{t("common.edit")}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteSpace(selectedSpace.id)}
                         className="btn btn-secondary text-sm text-red-400 hover:text-red-300"
                       >
                         <i className="fas fa-trash"></i>
-                        <span>删除</span>
+                        <span>{t("common.delete")}</span>
                       </button>
                     </div>
                   )}
@@ -1850,35 +1852,35 @@ function RoomsPage({
                     <div className="grid grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-400 mb-2">
-                          空间名称
+                          {t("rooms.spaceName")}
                         </label>
                         <p className="text-white font-medium">{selectedSpace.name}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-400 mb-2">
-                          空间类型
+                          {t("rooms.spaceType")}
                         </label>
                         <p className="text-white">{getSpaceTypeName(selectedSpace.type)}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-400 mb-2">
-                          所属空间
+                          {t("rooms.belongsToSpace")}
                         </label>
                         <p className="text-white">{getSpacePath(selectedSpace)}</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-400 mb-2">
-                          绑定设备
+                          {t("rooms.boundDevices")}
                         </label>
                         <p className="text-blue-400 font-medium">
-                          {selectedSpace.deviceCount || 0} 个设备
+                          {t("rooms.deviceCountText", { count: selectedSpace.deviceCount || 0 })}
                         </p>
                       </div>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-3">
-                        设备列表
+                        {t("rooms.deviceList")}
                       </label>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {getSpaceDevices(selectedSpace).length > 0 ? (
@@ -1904,7 +1906,7 @@ function RoomsPage({
                                     {device.name || device.gatewayName || device.id}
                                   </p>
                                   <p className="text-xs text-gray-400">
-                                    {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`} · ID:{" "}
+                                    {DEVICE_TYPE_LABELS[device.type] || t("rooms.unknownType", { type: device.type })} · ID:{" "}
                                     {device.id}
                                   </p>
                                 </div>
@@ -1920,7 +1922,7 @@ function RoomsPage({
                                     device.alive === 1 ? "badge-success" : "badge-error"
                                   }`}
                                 >
-                                  {device.alive === 1 ? "在线" : "离线"}
+                                  {device.alive === 1 ? t("devices.online") : t("devices.offline")}
                                 </span>
                                 <button
                                   onClick={() => handleUnbindDevice(device.id)}
@@ -1932,7 +1934,7 @@ function RoomsPage({
                             </div>
                           ))
                         ) : (
-                          <p className="text-center text-gray-400 py-8">该空间暂无设备</p>
+                          <p className="text-center text-gray-400 py-8">{t("rooms.noDevicesInSpace")}</p>
                         )}
                       </div>
                     </div>
@@ -1940,7 +1942,7 @@ function RoomsPage({
                 ) : (
                   <div className="text-center py-12">
                     <i className="fas fa-hand-pointer text-gray-600 text-4xl mb-4"></i>
-                    <p className="text-gray-400">请从左侧选择一个空间查看详情</p>
+                    <p className="text-gray-400">{t("rooms.selectSpacePrompt")}</p>
                   </div>
                 )}
               </div>
@@ -1953,7 +1955,7 @@ function RoomsPage({
             {/* 左侧：未绑定设备 */}
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <h4 className="text-lg font-bold text-white shrink-0">未绑定设备</h4>
+                <h4 className="text-lg font-bold text-white shrink-0">{t("rooms.unboundDevices")}</h4>
                 <span className="badge badge-info shrink-0">{unboundDevices.length}</span>
                 {meshIds.length > 0 && (
                   <select
@@ -1961,7 +1963,7 @@ function RoomsPage({
                     value={filterMeshId}
                     onChange={(e) => setFilterMeshId(e.target.value)}
                   >
-                    <option value="">全部 Mesh</option>
+                    <option value="">{t("devices.allMesh")}</option>
                     {meshIds.map(meshId => (
                       <option key={meshId} value={meshId}>
                         Mesh {meshId} ({devices.filter(d => d.meshId === meshId && !d.roomId).length})
@@ -1985,10 +1987,10 @@ function RoomsPage({
                     }}
                     className="form-checkbox"
                   />
-                  <span className="text-sm text-gray-400">全选</span>
+                  <span className="text-sm text-gray-400">{t("common.selectAll")}</span>
                 </label>
                 <span className="text-sm text-gray-500">
-                  已选 {selectedDevices.length} 个
+                  {t("rooms.selectedCount", { count: selectedDevices.length })}
                 </span>
               </div>
               <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
@@ -2031,7 +2033,7 @@ function RoomsPage({
                           {device.name || device.gatewayName || device.id}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`} · ID:{" "}
+                          {DEVICE_TYPE_LABELS[device.type] || t("rooms.unknownType", { type: device.type })} · ID:{" "}
                           {device.id}
                         </p>
                       </div>
@@ -2039,7 +2041,7 @@ function RoomsPage({
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-gray-400 py-8">所有设备已绑定</p>
+                  <p className="text-center text-gray-400 py-8">{t("rooms.allDevicesBound")}</p>
                 )}
               </div>
             </div>
@@ -2049,13 +2051,13 @@ function RoomsPage({
               <div className="p-6 bg-blue-500/10 rounded-lg border border-blue-500/20">
                 <h4 className="text-lg font-bold text-white mb-6">
                   <i className="fas fa-link mr-2"></i>
-                  设备绑定
+                  {t("rooms.deviceBinding")}
                 </h4>
 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                      已选设备
+                      {t("rooms.selectedDevices")}
                     </label>
                     <div className="min-h-[100px] p-3 bg-black/20 rounded-lg border border-dashed border-gray-600">
                       {selectedDevices.length > 0 ? (
@@ -2077,7 +2079,7 @@ function RoomsPage({
                         </div>
                       ) : (
                         <p className="text-sm text-gray-400 text-center py-4">
-                          请从左侧选择设备
+                          {t("rooms.selectDevicesPrompt")}
                         </p>
                       )}
                     </div>
@@ -2085,14 +2087,14 @@ function RoomsPage({
 
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                      目标空间
+                      {t("rooms.targetSpace")}
                     </label>
                     <select
                       className="input-field"
                       value={targetSpaceId}
                       onChange={(e) => setTargetSpaceId(e.target.value)}
                     >
-                      <option value="">选择空间</option>
+                      <option value="">{t("rooms.selectSpace")}</option>
                       {allSpaces.map((space) => (
                         <option key={space.id} value={space.id}>
                           {getSpacePath(space)}
@@ -2107,20 +2109,20 @@ function RoomsPage({
                     className="btn btn-primary w-full"
                   >
                     <i className="fas fa-check"></i>
-                    <span>{loading ? "绑定中..." : "确认绑定"}</span>
+                    <span>{loading ? t("groups.binding") : t("panel.confirmBind")}</span>
                   </button>
                 </div>
 
                 <div className="mt-6 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                   <p className="text-sm text-yellow-400 mb-2">
                     <i className="fas fa-info-circle mr-2"></i>
-                    绑定说明
+                    {t("rooms.bindingInfoTitle")}
                   </p>
                   <ul className="text-xs text-gray-400 space-y-1 ml-6">
-                    <li>• 支持单个或批量绑定设备</li>
-                    <li>• 每个设备只能绑定到一个空间</li>
-                    <li>• 绑定后可在层级结构中查看</li>
-                    <li>• 可随时解绑或转移设备</li>
+                    <li>• {t("rooms.bindingInfoSingleOrBatch")}</li>
+                    <li>• {t("rooms.bindingInfoOnePerSpace")}</li>
+                    <li>• {t("rooms.bindingInfoViewInHierarchy")}</li>
+                    <li>• {t("rooms.bindingInfoUnbindAnytime")}</li>
                   </ul>
                 </div>
               </div>
@@ -2134,7 +2136,7 @@ function RoomsPage({
             <div>
               <h4 className="text-lg font-bold text-white mb-4">
                 <i className="fas fa-sign-out-alt mr-2 text-red-400"></i>
-                源空间
+                {t("rooms.sourceSpace")}
               </h4>
               <select
                 className="input-field mb-4"
@@ -2144,7 +2146,7 @@ function RoomsPage({
                   setSelectedDevices([]);
                 }}
               >
-                <option value="">选择源空间</option>
+                <option value="">{t("rooms.selectSourceSpace")}</option>
                 {allSpaces.map((space) => (
                   <option key={space.id} value={space.id}>
                     {getSpacePath(space)}
@@ -2180,17 +2182,17 @@ function RoomsPage({
                             {device.name || device.gatewayName || device.id}
                           </p>
                           <p className="text-xs text-gray-400">
-                            {DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}
+                            {DEVICE_TYPE_LABELS[device.type] || t("rooms.unknownType", { type: device.type })}
                             {device.meshId && ` · Mesh ${device.meshId}`}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-center text-gray-400 py-8">该空间暂无设备</p>
+                    <p className="text-center text-gray-400 py-8">{t("rooms.noDevicesInSpace")}</p>
                   )
                 ) : (
-                  <p className="text-center text-gray-400 py-8">请先选择源空间</p>
+                  <p className="text-center text-gray-400 py-8">{t("rooms.selectSourceSpacePrompt")}</p>
                 )}
               </div>
             </div>
@@ -2201,7 +2203,7 @@ function RoomsPage({
                 <div className="mb-6">
                   <i className="fas fa-exchange-alt text-blue-400 text-4xl"></i>
                 </div>
-                <p className="text-sm text-gray-400 mb-4">已选择</p>
+                <p className="text-sm text-gray-400 mb-4">{t("rooms.selectedLabel")}</p>
                 <p className="text-2xl font-bold text-white mb-6">{selectedDevices.length}</p>
                 <button
                   onClick={handleTransfer}
@@ -2209,7 +2211,7 @@ function RoomsPage({
                   className="btn btn-primary w-full"
                 >
                   <i className="fas fa-arrow-right"></i>
-                  <span>{loading ? "转移中..." : "开始转移"}</span>
+                  <span>{loading ? t("panel.transferring") : t("panel.startTransfer")}</span>
                 </button>
               </div>
             </div>
@@ -2218,14 +2220,14 @@ function RoomsPage({
             <div>
               <h4 className="text-lg font-bold text-white mb-4">
                 <i className="fas fa-sign-in-alt mr-2 text-green-400"></i>
-                目标空间
+                {t("rooms.targetSpace")}
               </h4>
               <select
                 className="input-field mb-4"
                 value={targetSpaceId}
                 onChange={(e) => setTargetSpaceId(e.target.value)}
               >
-                <option value="">选择目标空间</option>
+                <option value="">{t("rooms.selectTargetSpace")}</option>
                 {allSpaces
                   .filter((s) => s.id !== sourceSpaceId)
                   .map((space) => (
@@ -2238,13 +2240,13 @@ function RoomsPage({
               <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
                 <p className="text-sm text-green-400 mb-2">
                   <i className="fas fa-info-circle mr-2"></i>
-                  转移说明
+                  {t("rooms.transferInfoTitle")}
                 </p>
                 <ul className="text-xs text-gray-400 space-y-1">
-                  <li>✓ 支持批量选择设备</li>
-                  <li>✓ 自动更新设备绑定关系</li>
-                  <li>✓ 保留设备配置信息</li>
-                  <li>✓ 支持跨层级转移</li>
+                  <li>✓ {t("rooms.transferInfo1")}</li>
+                  <li>✓ {t("rooms.transferInfo2")}</li>
+                  <li>✓ {t("rooms.transferInfo3")}</li>
+                  <li>✓ {t("rooms.transferInfo4")}</li>
                 </ul>
               </div>
             </div>
@@ -2303,7 +2305,7 @@ function RoomsPage({
             <div>
               <h4 className="text-lg font-bold text-white mb-4">
                 <i className="fas fa-check-square mr-2 text-blue-400"></i>
-                选择要移动的空间
+                {t("rooms.selectSpacesToMove")}
               </h4>
               <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/10">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -2319,15 +2321,15 @@ function RoomsPage({
                     }}
                     className="form-checkbox"
                   />
-                  <span className="text-sm text-gray-400">全选</span>
+                  <span className="text-sm text-gray-400">{t("common.selectAll")}</span>
                 </label>
                 <span className="text-sm text-gray-500">
-                  已选 {batchSelected.size} 个
+                  {t("rooms.selectedCount", { count: batchSelected.size })}
                 </span>
               </div>
               <div className="space-y-1 max-h-[500px] overflow-y-auto">
                 {allSpaces.length === 0 ? (
-                  <p className="text-center text-gray-400 py-8">暂无空间</p>
+                  <p className="text-center text-gray-400 py-8">{t("rooms.noSpacesSimple")}</p>
                 ) : (
                   <>
                     {rootSpaces.map(space => renderBatchNode(space))}
@@ -2340,17 +2342,17 @@ function RoomsPage({
             <div>
               <h4 className="text-lg font-bold text-white mb-4">
                 <i className="fas fa-flag-checkered mr-2 text-green-400"></i>
-                移动到
+                {t("rooms.moveTo")}
               </h4>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-2">目标父级空间</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">{t("rooms.targetParentSpace")}</label>
                   <select
                     className="input-field"
                     value={batchTargetId}
                     onChange={(e) => setBatchTargetId(e.target.value)}
                   >
-                    <option value="">无（顶级空间）</option>
+                    <option value="">{t("rooms.noneTopLevel")}</option>
                     {allSpaces
                       .filter(s => !batchSelected.has(s.id))
                       .map((space) => (
@@ -2360,20 +2362,20 @@ function RoomsPage({
                       ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-2">
-                    所选空间将移动到指定的目标父级下
+                    {t("rooms.moveDescription")}
                   </p>
                 </div>
 
                 <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
                   <p className="text-sm text-blue-400 mb-2">
                     <i className="fas fa-info-circle mr-2"></i>
-                    批量操作说明
+                    {t("rooms.batchInfoTitle")}
                   </p>
                   <ul className="text-xs text-gray-400 space-y-1">
-                    <li>✓ 支持批量选择多个空间</li>
-                    <li>✓ 将选中空间移动到目标父级下</li>
-                    <li>✓ 建筑、楼层、房间均可批量移动</li>
-                    <li>✓ 子空间会跟随父空间一起移动</li>
+                    <li>✓ {t("rooms.batchInfo1")}</li>
+                    <li>✓ {t("rooms.batchInfo2")}</li>
+                    <li>✓ {t("rooms.batchInfo3")}</li>
+                    <li>✓ {t("rooms.batchInfo4")}</li>
                   </ul>
                 </div>
 
@@ -2383,7 +2385,7 @@ function RoomsPage({
                   className="btn btn-primary w-full"
                 >
                   <i className="fas fa-exchange-alt mr-2"></i>
-                  {loading ? "移动中..." : `移动 ${batchSelected.size} 个空间`}
+                  {loading ? t("rooms.moving") : t("rooms.moveCount", { count: batchSelected.size })}
                 </button>
               </div>
             </div>
@@ -2430,6 +2432,7 @@ function AddSpaceModal({
   onClose: () => void;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   const isEdit = !!editingSpace;
   const [name, setName] = useState(editingSpace?.name ?? "");
   const [type, setType] = useState(editingSpace?.type ?? "room");
@@ -2458,7 +2461,7 @@ function AddSpaceModal({
       <div className="fixed inset-0 flex items-center justify-center z-50">
         <div className="bg-gradient-to-b from-[#1a1f2e] to-[#151a28] rounded-xl p-6 w-[450px] shadow-2xl border border-white/10">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">{isEdit ? "编辑空间" : "新建空间"}</h3>
+            <h3 className="text-xl font-bold text-white">{isEdit ? t("rooms.editSpace") : t("rooms.addSpace")}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
               <i className="fas fa-times text-xl"></i>
             </button>
@@ -2466,7 +2469,7 @@ function AddSpaceModal({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">空间类型</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t("rooms.spaceType")}</label>
               <select
                 className="input-field"
                 value={type}
@@ -2475,18 +2478,18 @@ function AddSpaceModal({
                   setParentId("");
                 }}
               >
-                <option value="building">建筑</option>
-                <option value="floor">楼层</option>
-                <option value="room">房间</option>
+                <option value="building">{t("rooms.typeBuilding")}</option>
+                <option value="floor">{t("rooms.typeFloor")}</option>
+                <option value="room">{t("rooms.typeRoom")}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">空间名称</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t("rooms.spaceName")}</label>
               <input
                 type="text"
                 className="input-field"
-                placeholder="请输入空间名称"
+                placeholder={t("rooms.enterName")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -2494,14 +2497,14 @@ function AddSpaceModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">父级空间</label>
+              <label className="block text-sm font-medium text-gray-400 mb-2">{t("rooms.parentSpace")}</label>
               <select
                 className="input-field"
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
                 disabled={type === "building"}
               >
-                <option value="">无（顶级空间）</option>
+                <option value="">{t("rooms.noneTopLevel")}</option>
                 {availableParents.map((space) => (
                   <option key={space.id} value={space.id}>
                     {space.name}
@@ -2512,10 +2515,10 @@ function AddSpaceModal({
 
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="btn btn-secondary flex-1 whitespace-nowrap">
-                取消
+                {t("common.cancel")}
               </button>
               <button type="submit" disabled={loading || !name.trim()} className="btn btn-primary flex-1 whitespace-nowrap">
-                {loading ? (isEdit ? "保存中..." : "创建中...") : (isEdit ? "保存修改" : "创建空间")}
+                {loading ? (isEdit ? t("rooms.saving") : t("rooms.creating")) : (isEdit ? t("common.saveModify") : t("rooms.addSpace"))}
               </button>
             </div>
           </form>
@@ -2539,6 +2542,7 @@ function SceneEditModal({
   onClose: () => void;
   onSave: (scene: Omit<Partial<Scene>, 'actions'> & { actions: { deviceId: string; action: string; value: number[]; meshId: string; deviceName: string }[] }) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const isEditing = !!scene;
   const [name, setName] = useState(scene?.name ?? "");
   const [icon, setIcon] = useState(scene?.icon ?? "fa-star");
@@ -2609,9 +2613,9 @@ function SceneEditModal({
 
   // 获取设备所在空间名称
   const getDeviceRoomLabel = (roomId: string) => {
-    if (!roomId) return "未绑定空间";
+    if (!roomId) return t("scenes.unboundSpace");
     const space = roomList.find((r) => r.id === roomId);
-    return space ? space.name : `空间${roomId}`;
+    return space ? space.name : t("devices.space", { roomId });
   };
 
   // Filter devices (不根据在线状态过滤，所有设备都可选)
@@ -2734,7 +2738,7 @@ function SceneEditModal({
   // Handle save
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("请输入场景名称");
+      alert(t("scenes.enterName"));
       return;
     }
     setSaving(true);
@@ -2750,7 +2754,7 @@ function SceneEditModal({
       onClose();
     } catch (err) {
       console.error("Save failed:", err);
-      alert("保存失败");
+      alert(t("scenes.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -2759,14 +2763,14 @@ function SceneEditModal({
   // Handle delete
   const handleDelete = async () => {
     if (!scene?.id) return;
-    if (!confirm(`确定要删除场景"${scene.name}"吗？`)) return;
+    if (!confirm(t("scenes.confirmDeleteNamed", { name: scene.name }))) return;
     setDeleting(true);
     try {
       await fetch(`/api/scenes/${scene.id}`, { method: "DELETE" });
       onClose();
     } catch (err) {
       console.error("Delete failed:", err);
-      alert("删除失败");
+      alert(t("scenes.deleteFailed"));
     } finally {
       setDeleting(false);
     }
@@ -2774,18 +2778,18 @@ function SceneEditModal({
 
   // Icon options
   const iconOptions = [
-    { value: "fa-lightbulb", label: "灯泡" },
-    { value: "fa-moon", label: "月亮" },
-    { value: "fa-sun", label: "太阳" },
-    { value: "fa-users", label: "会客" },
-    { value: "fa-film", label: "影院" },
-    { value: "fa-leaf", label: "节能" },
-    { value: "fa-star", label: "星星" },
-    { value: "fa-heart", label: "爱心" },
-    { value: "fa-home", label: "家居" },
-    { value: "fa-bed", label: "睡眠" },
-    { value: "fa-utensils", label: "用餐" },
-    { value: "fa-book", label: "阅读" },
+    { value: "fa-lightbulb", label: t("deviceIcon.lightbulb") },
+    { value: "fa-moon", label: t("deviceIcon.moon") },
+    { value: "fa-sun", label: t("deviceIcon.sun") },
+    { value: "fa-users", label: t("deviceIcon.meeting") },
+    { value: "fa-film", label: t("deviceIcon.movie") },
+    { value: "fa-leaf", label: t("deviceIcon.energySaving") },
+    { value: "fa-star", label: t("deviceIcon.star") },
+    { value: "fa-heart", label: t("deviceIcon.heart") },
+    { value: "fa-home", label: t("deviceIcon.home") },
+    { value: "fa-bed", label: t("deviceIcon.sleep") },
+    { value: "fa-utensils", label: t("deviceIcon.dining") },
+    { value: "fa-book", label: t("deviceIcon.reading") },
   ];
 
   // Color options
@@ -2797,12 +2801,12 @@ function SceneEditModal({
   // Action types for a device
   const getDeviceActionTypes = (func: number) => {
     switch (func) {
-      case 2: return [{ value: "onoff", label: "开关" }];
-      case 3: return [{ value: "onoff", label: "开关" }, { value: "level", label: "调光" }];
-      case 4: return [{ value: "onoff", label: "开关" }, { value: "level", label: "调光" }, { value: "ctl", label: "色温" }];
-      case 5: return [{ value: "onoff", label: "开关" }, { value: "level", label: "调光" }, { value: "hsl", label: "彩光" }];
-      case 7: return [{ value: "onoff", label: "开关" }, { value: "level", label: "调速" }];
-      default: return [{ value: "onoff", label: "开关" }];
+      case 2: return [{ value: "onoff", label: t("func.0") }];
+      case 3: return [{ value: "onoff", label: t("func.0") }, { value: "level", label: t("func.1") }];
+      case 4: return [{ value: "onoff", label: t("func.0") }, { value: "level", label: t("func.1") }, { value: "ctl", label: t("scenes.colorTemp") }];
+      case 5: return [{ value: "onoff", label: t("func.0") }, { value: "level", label: t("func.1") }, { value: "hsl", label: t("scenes.colorful") }];
+      case 7: return [{ value: "onoff", label: t("func.0") }, { value: "level", label: t("scenes.setSpeed") }];
+      default: return [{ value: "onoff", label: t("func.0") }];
     }
   };
 
@@ -2819,10 +2823,10 @@ function SceneEditModal({
 
     const formatAction = (action: string, value: number[]) => {
       switch (action) {
-        case "onoff": return value[0] === 1 ? "开" : "关";
-        case "level": return `亮度 ${value[0]}%`;
-        case "ctl": return `亮度 ${value[0]}% 色温 ${value[1]}%`;
-        case "hsl": return `H:${value[0]} S:${value[1]} L:${value[2]}`;
+        case "onoff": return value[0] === 1 ? t("common.on") : t("common.off");
+        case "level": return t("scenes.brightnessPercent", { value: value[0] });
+        case "ctl": return t("scenes.brightnessColorTempPercent", { brightness: value[0], colorTemp: value[1] });
+        case "hsl": return t("scenes.hslFormat", { h: value[0], s: value[1], l: value[2] });
         default: return action;
       }
     };
@@ -2839,7 +2843,7 @@ function SceneEditModal({
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
             <h3 className="text-sm font-bold text-white">
               <i className="fas fa-exchange-alt text-blue-400 mr-2" />
-              同步设备动作
+              {t("scenes.syncDeviceAction")}
             </h3>
             <button onClick={closeSync} className="text-gray-400 hover:text-white">
               <i className="fas fa-times" />
@@ -2848,7 +2852,7 @@ function SceneEditModal({
 
           {/* Source device info */}
           <div className="p-4 border-b border-white/10">
-            <p className="text-xs text-gray-400 mb-2">源设备设置</p>
+            <p className="text-xs text-gray-400 mb-2">{t("scenes.sourceDeviceSettings")}</p>
             <div className="bg-blue-500/10 rounded-lg p-3">
               <p className="text-sm text-white font-medium">{syncSourceDevice.name}</p>
               <p className="text-xs text-blue-400 mt-1">
@@ -2862,7 +2866,7 @@ function SceneEditModal({
           {/* Target selection */}
           <div className="p-4">
             <p className="text-xs text-gray-400 mb-2">
-              选择要同步的已配置设备
+              {t("scenes.selectConfiguredToSync")}
               {syncTargets.length > 0 && (
                 <button
                   className="float-right text-blue-400 hover:text-blue-300"
@@ -2874,14 +2878,14 @@ function SceneEditModal({
                     }
                   }}
                 >
-                  {syncSelectedTargets.size === syncTargets.length ? "取消全选" : "全选"}
+                  {syncSelectedTargets.size === syncTargets.length ? t("common.deselectAll") : t("common.selectAll")}
                 </button>
               )}
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {syncTargets.length === 0 ? (
                 <p className="text-gray-500 text-sm text-center py-4">
-                  没有可同步的同类型设备
+                  {t("scenes.noSyncTargets")}
                 </p>
               ) : (
                 syncTargets.map(device => (
@@ -2924,7 +2928,7 @@ function SceneEditModal({
               onClick={closeSync}
               className="flex-1 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 transition-colors"
             >
-              取消
+              {t("common.cancel")}
             </button>
             <button
               onClick={() => {
@@ -2940,7 +2944,7 @@ function SceneEditModal({
                   : "bg-white/5 text-gray-500 cursor-not-allowed"
               }`}
             >
-              同步到 {syncSelectedTargets.size} 个设备
+              {t("scenes.syncToDevices", { count: syncSelectedTargets.size })}
             </button>
           </div>
         </div>
@@ -2954,7 +2958,7 @@ function SceneEditModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">
-            {isEditing ? "编辑场景" : "新建场景"}
+            {isEditing ? t("scenes.edit") : t("scenes.createNew")}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <i className="fas fa-times text-lg" />
@@ -2973,7 +2977,7 @@ function SceneEditModal({
                   value={selectedMeshId}
                   onChange={(e) => setSelectedMeshId(e.target.value)}
                 >
-                  <option value="">全部 Mesh</option>
+                  <option value="">{t("groups.allMesh")}</option>
                   {meshIds.map((m) => (
                     <option key={m} value={m}>Mesh: {m.slice(0, 8)}...</option>
                   ))}
@@ -2984,7 +2988,7 @@ function SceneEditModal({
                   value={selectedRoomId}
                   onChange={(e) => setSelectedRoomId(e.target.value)}
                 >
-                  <option value="">全部空间</option>
+                  <option value="">{t("energy.allSpaces")}</option>
                   {roomList.map((r) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
@@ -2994,7 +2998,7 @@ function SceneEditModal({
               <input
                 type="text"
                 className="input-field text-sm"
-                placeholder="搜索设备名称..."
+                placeholder={t("scenes.searchDeviceName")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -3008,7 +3012,7 @@ function SceneEditModal({
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-sm text-blue-400">
                       <i className="fas fa-check-circle mr-1" />
-                      已配置设备 ({configuredDevices.length})
+                      {t("scenes.configuredDevicesCount", { count: configuredDevices.length })}
                     </p>
                     {unconfiguredDevices.length > 0 && (
                       <button
@@ -3016,22 +3020,22 @@ function SceneEditModal({
                         className="px-3 py-1 text-xs bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
                       >
                         <i className="fas fa-plus mr-1" />
-                        添加设备
+                        {t("scenes.addDevice")}
                       </button>
                     )}
                   </div>
 
                   {/* 表头 */}
                   <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500 border-b border-white/10">
-                    <span className="shrink-0 whitespace-nowrap">设备名称</span>
-                    <span className="text-center shrink-0" style={{ width: 80 }}>功能</span>
-                    <span className="text-center flex-1">参数</span>
-                    <span className="text-center shrink-0">操作</span>
+                    <span className="shrink-0 whitespace-nowrap">{t("devices.name")}</span>
+                    <span className="text-center shrink-0" style={{ width: 80 }}>{t("scenes.function")}</span>
+                    <span className="text-center flex-1">{t("scenes.parameter")}</span>
+                    <span className="text-center shrink-0">{t("devices.actions")}</span>
                   </div>
 
                   {configuredDevices.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-8">
-                      暂未配置任何设备，点击上方"添加设备"开始
+                      {t("scenes.noConfiguredDevicesHint")}
                     </p>
                   ) : (
                     <div className="space-y-1">
@@ -3084,7 +3088,7 @@ function SceneEditModal({
                                     }`}
                                     onClick={() => updateDeviceAction(device.did, "onoff", [1])}
                                   >
-                                    开
+                                    {t("common.on")}
                                   </button>
                                   <button
                                     className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -3094,7 +3098,7 @@ function SceneEditModal({
                                     }`}
                                     onClick={() => updateDeviceAction(device.did, "onoff", [0])}
                                   >
-                                    关
+                                    {t("common.off")}
                                   </button>
                                 </>
                               )}
@@ -3122,7 +3126,7 @@ function SceneEditModal({
                                     min={0}
                                     max={100}
                                     className="input-field text-sm py-1.5 w-16 text-center"
-                                    placeholder="亮度"
+                                    placeholder={t("drawer.brightness")}
                                     value={selected.value[0] ?? 100}
                                     onChange={(e) => {
                                       const v = [Math.max(0, Math.min(100, Number(e.target.value))), selected.value[1] ?? 50];
@@ -3134,7 +3138,7 @@ function SceneEditModal({
                                     min={0}
                                     max={100}
                                     className="input-field text-sm py-1.5 w-16 text-center"
-                                    placeholder="色温"
+                                    placeholder={t("scenes.colorTemp")}
                                     value={selected.value[1] ?? 50}
                                     onChange={(e) => {
                                       const v = [selected.value[0] ?? 100, Math.max(0, Math.min(100, Number(e.target.value)))];
@@ -3193,14 +3197,14 @@ function SceneEditModal({
                                 onClick={() => setSyncModal({ visible: true, sourceDeviceId: device.did })}
                                 className="p-2 text-blue-400 hover:bg-blue-500/20 rounded transition-colors"
                                 disabled={getSyncTargets(device.did).length === 0}
-                                title={getSyncTargets(device.did).length > 0 ? `同步到其他 ${getSyncTargets(device.did).length} 个设备` : "无目标"}
+                                title={getSyncTargets(device.did).length > 0 ? t("scenes.syncToOtherDevices", { count: getSyncTargets(device.did).length }) : t("scenes.noTarget")}
                               >
                                 <i className="fas fa-exchange-alt" />
                               </button>
                               <button
                                 onClick={() => removeDevice(device.did)}
                                 className="p-2 text-red-400 hover:bg-red-500/20 rounded transition-colors"
-                                title="移除"
+                                title={t("common.remove")}
                               >
                                 <i className="fas fa-times" />
                               </button>
@@ -3221,14 +3225,14 @@ function SceneEditModal({
                     className="w-full py-2 mb-3 rounded-lg bg-white/5 text-gray-400 text-sm hover:bg-white/10 flex items-center justify-center gap-2 transition-colors"
                   >
                     <i className="fas fa-arrow-left" />
-                    返回已配置设备 ({configuredDevices.length})
+                    {t("scenes.backToConfiguredDevices", { count: configuredDevices.length })}
                   </button>
 
-                  <p className="text-sm text-gray-400 mb-2">选择设备添加到场景</p>
+                  <p className="text-sm text-gray-400 mb-2">{t("scenes.selectDeviceToAdd")}</p>
 
                   {unconfiguredDevices.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-8">
-                      没有可添加的设备
+                      {t("scenes.noDevicesToAdd")}
                     </p>
                   ) : (
                     <>
@@ -3275,7 +3279,7 @@ function SceneEditModal({
                             className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
                           >
                             <i className="fas fa-plus" />
-                            确认添加 {addSelectedIds.size} 个设备
+                            {t("scenes.confirmAddDevices", { count: addSelectedIds.size })}
                           </button>
                         </div>
                       )}
@@ -3291,19 +3295,19 @@ function SceneEditModal({
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {/* Scene name */}
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">场景名称</label>
+                <label className="text-xs text-gray-400 mb-1 block">{t("scenes.name")}</label>
                 <input
                   type="text"
                   className="input-field"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="输入场景名称"
+                  placeholder={t("scenes.enterName")}
                 />
               </div>
 
               {/* Icon */}
               <div>
-                <label className="text-xs text-gray-400 mb-2 block">图标</label>
+                <label className="text-xs text-gray-400 mb-2 block">{t("scenes.icon")}</label>
                 <div className="grid grid-cols-6 gap-2">
                   {iconOptions.map((opt) => (
                     <button
@@ -3323,7 +3327,7 @@ function SceneEditModal({
 
               {/* Color */}
               <div>
-                <label className="text-xs text-gray-400 mb-2 block">颜色</label>
+                <label className="text-xs text-gray-400 mb-2 block">{t("scenes.color")}</label>
                 <div className="flex flex-wrap gap-2">
                   {colorOptions.map((c) => (
                     <button
@@ -3346,7 +3350,7 @@ function SceneEditModal({
                   onChange={(e) => setShowInQuick(e.target.checked)}
                   className="w-4 h-4 rounded bg-white/10 border-white/20 text-blue-500"
                 />
-                <span className="text-sm text-gray-300">添加到快捷场景栏</span>
+                <span className="text-sm text-gray-300">{t("scenes.addToQuickBar")}</span>
               </label>
             </div>
 
@@ -3355,7 +3359,7 @@ function SceneEditModal({
               {/* 取消和保存在同一行 */}
               <div className="flex gap-2">
                 <button className="btn btn-sm whitespace-nowrap flex-1 border border-gray-600 hover:bg-gray-700/50 justify-center" onClick={onClose}>
-                  取消
+                  {t("common.cancel")}
                 </button>
                 <button
                   className="btn btn-sm whitespace-nowrap btn-primary flex-1 justify-center"
@@ -3363,7 +3367,7 @@ function SceneEditModal({
                   disabled={saving || deleting}
                 >
                   <i className={`fas ${saving ? "fa-spinner fa-spin" : "fa-save"} mr-2`} />
-                  {saving ? "保存中..." : "保存"}
+                  {saving ? t("scenes.saving") : t("common.save")}
                 </button>
               </div>
               {/* 删除按钮单独一行 */}
@@ -3374,7 +3378,7 @@ function SceneEditModal({
                   disabled={deleting || saving}
                 >
                   <i className={`fas ${deleting ? "fa-spinner fa-spin" : "fa-trash"} mr-2`} />
-                  {deleting ? "删除中..." : "删除"}
+                  {deleting ? t("scenes.deleting") : t("common.delete")}
                 </button>
               )}
             </div>
@@ -3387,7 +3391,7 @@ function SceneEditModal({
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 rounded-2xl">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent" />
-              <span className="text-white text-sm">{saving ? "正在保存..." : "正在删除..."}</span>
+              <span className="text-white text-sm">{saving ? t("scenes.savingOverlay") : t("scenes.deletingOverlay")}</span>
             </div>
           </div>
         )}
@@ -3406,6 +3410,7 @@ function ScenesPage({
   devices: InSonaDevice[];
   spaces: SpaceNode[];
 }) {
+  const { t } = useTranslation();
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [activating, setActivating] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -3442,10 +3447,10 @@ function ScenesPage({
     try {
       // 从数据库加载的场景
       const res = await fetch(`/api/scenes/${scene.id}/activate`, { method: "POST" });
-      if (!res.ok) throw new Error("激活失败");
+      if (!res.ok) throw new Error(t("scenes.activateFailed"));
     } catch (err) {
       console.error("Failed to activate scene:", err);
-      alert("执行场景失败");
+      alert(t("scenes.executeFailed"));
     } finally {
       setTimeout(() => setActivating(null), 1000);
     }
@@ -3474,7 +3479,7 @@ function ScenesPage({
             actions: actionsPayload,
           }),
         });
-        if (!res.ok) throw new Error("更新失败");
+        if (!res.ok) throw new Error(t("scenes.updateFailed"));
         const data = await res.json();
 
         // Partial state update — no full reload
@@ -3496,7 +3501,7 @@ function ScenesPage({
             actions: actionsPayload,
           }),
         });
-        if (!res.ok) throw new Error("创建失败");
+        if (!res.ok) throw new Error(t("scenes.createFailed"));
         const data = await res.json();
 
         // Partial state update — no full reload
@@ -3516,13 +3521,13 @@ function ScenesPage({
 
   // Delete scene
   const handleDeleteScene = async (sceneId: string) => {
-    if (!confirm("确定要删除此场景吗？")) return;
+    if (!confirm(t("scenes.confirmDelete"))) return;
     try {
       await fetch(`/api/scenes/${sceneId}`, { method: "DELETE" });
       await loadScenes();
     } catch (err) {
       console.error("Delete scene failed:", err);
-      alert("删除失败");
+      alert(t("scenes.deleteFailed"));
     }
   };
 
@@ -3560,7 +3565,7 @@ function ScenesPage({
           </div>
           <p className="text-sm text-white text-center">{scene.name}</p>
           {(scene.actions?.length ?? 0) > 0 && (
-            <p className="text-xs text-gray-500">{scene.actions?.length} 个设备</p>
+            <p className="text-xs text-gray-500">{t("scenes.deviceCount", { count: scene.actions?.length ?? 0 })}</p>
           )}
         </button>
         {/* Edit button - only for non-default scenes */}
@@ -3572,7 +3577,7 @@ function ScenesPage({
               handleEditScene(dbScene ?? null);
             }}
             className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-white hover:bg-black/70"
-            title="编辑场景"
+            title={t("scenes.edit")}
           >
             <i className="fas fa-pen text-xs" />
           </button>
@@ -3602,13 +3607,13 @@ function ScenesPage({
 
       <div className="card">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-white">快捷场景</h3>
+          <h3 className="text-lg font-bold text-white">{t("dashboard.quickScenes")}</h3>
           <button
             className="btn btn-primary"
             onClick={() => handleEditScene(null)}
           >
             <i className="fas fa-plus" />
-            <span>新建场景</span>
+            <span>{t("scenes.createNew")}</span>
           </button>
         </div>
 
@@ -3625,7 +3630,7 @@ function ScenesPage({
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-400 text-sm mb-4">暂无快捷场景，点击上方按钮创建</p>
+                <p className="text-gray-400 text-sm mb-4">{t("scenes.noQuickScenes")}</p>
               </div>
             )}
 
@@ -3652,7 +3657,7 @@ function ScenesPage({
             {/* Empty state */}
             {scenes.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-gray-400 text-sm mb-4">暂无自定义场景，点击上方按钮创建</p>
+                <p className="text-gray-400 text-sm mb-4">{t("scenes.noCustomScenes")}</p>
               </div>
             )}
           </>
@@ -3661,7 +3666,7 @@ function ScenesPage({
         {devices.length === 0 && (
           <p className="text-center text-gray-400 mt-6">
             <i className="fas fa-info-circle mr-2" />
-            请先连接网关获取设备数据
+            {t("scenes.connectGatewayFirst")}
           </p>
         )}
       </div>
@@ -3674,6 +3679,7 @@ function ScenesPage({
 const CARBON_EMISSION_FACTOR = 0.5586; // kgCO₂e/kWh
 
 function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: SpaceNode[] }) {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState(30);
   const [selectedRoom, setSelectedRoom] = useState<string>("");
   const [todayChartType, setTodayChartType] = useState<"hourly" | "room">("hourly"); // 今日能耗图表类型
@@ -3762,7 +3768,7 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
     if (!energyData?.records) return {};
     const grouped: Record<string, number> = {};
     for (const record of energyData.records) {
-      const roomName = record.device.room?.name || "未绑定";
+      const roomName = record.device.room?.name || t("devices.notBound");
       grouped[roomName] = (grouped[roomName] || 0) + record.kwh;
     }
     return grouped;
@@ -3789,35 +3795,35 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
       {todayEnergy && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
           <div className="stat-card">
-            <p className="text-sm text-blue-200 mb-1">今日总能耗 (kWh)</p>
+            <p className="text-sm text-blue-200 mb-1">{t("energy.todayTotalKwh")}</p>
             <h3 className="text-3xl font-bold text-white">{todayEnergy.totalKwh.toFixed(4)}</h3>
             <p className="text-xs text-gray-400 mt-2">
-              {todayEnergy.recordCount} 条记录
+              {t("energy.recordsCount", { count: todayEnergy.recordCount })}
             </p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #059669 0%, #047857 100%)" }}>
-            <p className="text-sm text-green-200 mb-1">今日碳排放 (kgCO₂e)</p>
+            <p className="text-sm text-green-200 mb-1">{t("energy.todayCarbon")}</p>
             <h3 className="text-3xl font-bold text-white">{todayEnergy.totalCarbonEmission.toFixed(4)}</h3>
             <p className="text-xs text-gray-400 mt-2">
-              EF: {CARBON_EMISSION_FACTOR}
+              {t("energy.efLabel", { value: CARBON_EMISSION_FACTOR })}
             </p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #0891b2 0%, #0e7490 100%)" }}>
-            <p className="text-sm text-cyan-200 mb-1">活跃设备</p>
+            <p className="text-sm text-cyan-200 mb-1">{t("energy.activeDevices")}</p>
             <h3 className="text-3xl font-bold text-white">{todayEnergy.deviceStats.length}</h3>
             <p className="text-xs text-gray-400 mt-2">
-              {todayEnergy.roomStats.length} 个空间
+              {t("energy.spacesCount", { count: todayEnergy.roomStats.length })}
             </p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)" }}>
-            <p className="text-sm text-purple-200 mb-1">总能耗 (kWh)</p>
+            <p className="text-sm text-purple-200 mb-1">{t("energy.totalKwhLabel")}</p>
             <h3 className="text-3xl font-bold text-white">{totalKwh.toFixed(2)}</h3>
-            <p className="text-xs text-gray-400 mt-2">历史累计</p>
+            <p className="text-xs text-gray-400 mt-2">{t("energy.historicalTotal")}</p>
           </div>
           <div className="stat-card" style={{ background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" }}>
-            <p className="text-sm text-red-200 mb-1">总碳排放 (kgCO₂e)</p>
+            <p className="text-sm text-red-200 mb-1">{t("energy.totalCarbonLabel")}</p>
             <h3 className="text-3xl font-bold text-white">{totalCarbonEmission.toFixed(2)}</h3>
-            <p className="text-xs text-gray-400 mt-2">日均: {avgCarbonEmission.toFixed(2)}</p>
+            <p className="text-xs text-gray-400 mt-2">{t("energy.dailyAverageLabel", { value: avgCarbonEmission.toFixed(2) })}</p>
           </div>
         </div>
       )}
@@ -3826,7 +3832,7 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
       {todayEnergy && (
         <div className="card mb-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-white">今日能耗趋势</h3>
+            <h3 className="text-lg font-bold text-white">{t("energy.todayTrend")}</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTodayChartType("hourly")}
@@ -3837,7 +3843,7 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
                 }`}
               >
                 <i className="fas fa-clock mr-2"></i>
-                小时趋势
+                {t("energy.hourlyTrend")}
               </button>
               <button
                 onClick={() => setTodayChartType("room")}
@@ -3848,7 +3854,7 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
                 }`}
               >
                 <i className="fas fa-building mr-2"></i>
-                空间对比
+                {t("energy.spaceComparison")}
               </button>
             </div>
           </div>
@@ -3866,12 +3872,12 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
           {/* 图表说明 */}
           {todayChartType === "hourly" && (
             <p className="text-xs text-gray-500 mt-4 text-center">
-              24小时能耗分布趋势，展示每小时的累计能耗
+              {t("energy.hourlyTrendDesc")}
             </p>
           )}
           {todayChartType === "room" && (
             <p className="text-xs text-gray-500 mt-4 text-center">
-              各空间当日能耗对比，按能耗从高到低排序
+              {t("energy.spaceComparisonDesc")}
             </p>
           )}
         </div>
@@ -3881,25 +3887,25 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
       <div className="card mb-6">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-400">时间范围:</label>
+            <label className="text-sm text-gray-400">{t("energy.timeRange")}</label>
             <select
               className="input-field text-sm"
               value={period}
               onChange={(e) => setPeriod(Number(e.target.value))}
             >
-              <option value={7}>近7天</option>
-              <option value={30}>近30天</option>
-              <option value={90}>近90天</option>
+              <option value={7}>{t("energy.week")}</option>
+              <option value={30}>{t("energy.month")}</option>
+              <option value={90}>{t("energy.quarter")}</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-400">空间:</label>
+            <label className="text-sm text-gray-400">{t("energy.spaceLabel")}</label>
             <select
               className="input-field text-sm"
               value={selectedRoom}
               onChange={(e) => setSelectedRoom(e.target.value)}
             >
-              <option value="">全部空间</option>
+              <option value="">{t("energy.allSpaces")}</option>
               {roomList.map((room) => (
                 <option key={room.id} value={room.id}>{room.name}</option>
               ))}
@@ -3907,25 +3913,25 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
           </div>
           <button onClick={loadEnergyData} className="btn btn-secondary text-sm" disabled={loading}>
             <i className={`fas fa-sync-alt ${loading ? "animate-spin" : ""}`}></i>
-            <span>刷新</span>
+            <span>{t("common.refresh")}</span>
           </button>
         </div>
       </div>
 
       {/* 总能耗趋势图 */}
       <div className="card mb-6">
-        <h3 className="text-lg font-bold text-white mb-6">总能耗趋势</h3>
+        <h3 className="text-lg font-bold text-white mb-6">{t("energy.totalTrend")}</h3>
         {dailyData.length > 0 ? (
           <EnergyChart data={dailyData} />
         ) : (
-          <p className="text-center text-gray-400 py-12">暂无数据</p>
+          <p className="text-center text-gray-400 py-12">{t("dashboard.noData")}</p>
         )}
       </div>
 
       {/* 各空间能耗分析 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="text-lg font-bold text-white mb-6">各空间能耗占比</h3>
+          <h3 className="text-lg font-bold text-white mb-6">{t("energy.spacePercentage")}</h3>
           {Object.keys(roomEnergyData).length > 0 ? (
             <div className="space-y-3">
               {Object.entries(roomEnergyData)
@@ -3949,16 +3955,16 @@ function EnergyPage({ dbDevices, spaces }: { dbDevices: DbDevice[]; spaces: Spac
                 })}
             </div>
           ) : (
-            <p className="text-center text-gray-400 py-8">暂无数据</p>
+            <p className="text-center text-gray-400 py-8">{t("dashboard.noData")}</p>
           )}
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-bold text-white mb-6">空间能耗对比</h3>
+          <h3 className="text-lg font-bold text-white mb-6">{t("energy.spaceComparisonChart")}</h3>
           {Object.keys(roomEnergyData).length > 0 ? (
             <EnergyBarChart data={Object.entries(roomEnergyData).map(([name, value]) => ({ name, value }))} />
           ) : (
-            <p className="text-center text-gray-400 py-8">暂无数据</p>
+            <p className="text-center text-gray-400 py-8">{t("dashboard.noData")}</p>
           )}
         </div>
       </div>
@@ -3984,6 +3990,7 @@ interface LogStats {
 }
 
 function LogsPage() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [stats, setStats] = useState<LogStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -4028,7 +4035,7 @@ function LogsPage() {
   }, [autoRefresh, fetchLogs, dateFilter]);
 
   const handleClear = async () => {
-    if (!confirm("确认清空所有日志？")) return;
+    if (!confirm(t("logs.confirmClear"))) return;
     await fetch("/api/system/logs?action=clear");
     fetchLogs();
   };
@@ -4048,11 +4055,11 @@ function LogsPage() {
       {stats && (
         <div className="grid grid-cols-5 gap-4">
           {[
-            { label: "总日志", value: stats.total, sub: "条", color: "text-[#3b9eff]" },
-            { label: "INFO", value: stats.byLevel.info, sub: "信息", color: "text-blue-400" },
-            { label: "WARN", value: stats.byLevel.warn, sub: "警告", color: "text-yellow-400" },
-            { label: "ERROR", value: stats.byLevel.error, sub: "错误", color: "text-red-400" },
-            { label: "DEBUG", value: stats.byLevel.debug, sub: "调试", color: "text-gray-400" },
+            { label: t("logs.totalCount"), value: stats.total, sub: t("logs.items"), color: "text-[#3b9eff]" },
+            { label: "INFO", value: stats.byLevel.info, sub: t("logs.info"), color: "text-blue-400" },
+            { label: "WARN", value: stats.byLevel.warn, sub: t("logs.warn"), color: "text-yellow-400" },
+            { label: "ERROR", value: stats.byLevel.error, sub: t("logs.error"), color: "text-red-400" },
+            { label: "DEBUG", value: stats.byLevel.debug, sub: t("logs.debug"), color: "text-gray-400" },
           ].map((item) => (
             <div key={item.label} className="bg-[#101922] rounded-lg border border-[#1c2630] p-4 flex flex-col justify-center">
               <p className="text-xs text-[#4a5b70] mb-1">{item.label}</p>
@@ -4088,7 +4095,7 @@ function LogsPage() {
                 onClick={() => setDateFilter(new Date().toISOString().split("T")[0])}
                 className="text-xs text-[#3b9eff] hover:underline"
               >
-                回到今天
+                {t("logs.backToToday")}
               </button>
             )}
           </div>
@@ -4098,7 +4105,7 @@ function LogsPage() {
               type="text"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              placeholder="搜索日志内容..."
+              placeholder={t("logs.search")}
               className="input-field flex-1 text-sm"
               style={{ padding: "6px 12px" }}
             />
@@ -4109,7 +4116,7 @@ function LogsPage() {
             className="input-field text-sm"
             style={{ padding: "6px 12px" }}
           >
-            <option value="">全部级别</option>
+            <option value="">{t("logs.allLevels")}</option>
             <option value="error">ERROR</option>
             <option value="warn">WARN</option>
             <option value="info">INFO</option>
@@ -4121,7 +4128,7 @@ function LogsPage() {
             className="input-field text-sm"
             style={{ padding: "6px 12px" }}
           >
-            <option value="">全部模块</option>
+            <option value="">{t("logs.allModules")}</option>
             {modules.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
@@ -4131,15 +4138,15 @@ function LogsPage() {
             className={`btn text-sm ${autoRefresh ? "btn-primary" : "btn-secondary"}`}
           >
             <i className={`fas fa-${autoRefresh ? "pause" : "play"}`} />
-            <span>{autoRefresh ? "暂停刷新" : "自动刷新"}</span>
+            <span>{autoRefresh ? t("logs.pauseRefresh") : t("logs.autoRefresh")}</span>
           </button>
           <button onClick={fetchLogs} className="btn btn-secondary text-sm">
             <i className="fas fa-sync-alt" />
-            <span>刷新</span>
+            <span>{t("common.refresh")}</span>
           </button>
           <button onClick={handleClear} className="btn btn-secondary text-sm text-red-400 hover:text-red-300">
             <i className="fas fa-trash" />
-            <span>清空</span>
+            <span>{t("logs.clear")}</span>
           </button>
         </div>
 
@@ -4166,12 +4173,12 @@ function LogsPage() {
           {loading ? (
             <div className="flex items-center justify-center py-12 text-gray-400">
               <i className="fas fa-spinner fa-spin mr-2" />
-              加载中...
+              {t("logs.loading")}
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <i className="fas fa-inbox text-3xl mb-2" />
-              <p>暂无日志</p>
+              <p>{t("logs.noLogs")}</p>
             </div>
           ) : (
             logs.map((log) => {
@@ -4214,10 +4221,10 @@ function LogsPage() {
         {/* 底部信息 */}
         {stats && (
           <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-gray-500">
-            <span>共 {stats.total} 条日志</span>
+            <span>{t("logs.totalLogsCount", { count: stats.total })}</span>
             <span>
-              {stats.oldest && `最早: ${new Date(stats.oldest).toLocaleTimeString("zh-CN")}`}
-              {stats.newest && ` | 最新: ${new Date(stats.newest).toLocaleTimeString("zh-CN")}`}
+              {stats.oldest && t("logs.earliest", { time: new Date(stats.oldest).toLocaleTimeString("zh-CN") })}
+              {stats.newest && ` | ${t("logs.latest", { time: new Date(stats.newest).toLocaleTimeString("zh-CN") })}`}
             </span>
           </div>
         )}
@@ -4239,6 +4246,7 @@ interface GatewayInfo {
 }
 
 function SettingsPage() {
+  const { t } = useTranslation();
   const [gateways, setGateways] = useState<GatewayInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -4289,11 +4297,11 @@ function SettingsPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "添加失败");
+      if (!res.ok) throw new Error(data.error ?? t("settings.addFailed"));
       setNewName(""); setNewIp(""); setNewPort("8091");
       await loadGateways();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "添加失败");
+      alert(err instanceof Error ? err.message : t("settings.addFailed"));
     } finally {
       setAdding(false);
     }
@@ -4305,12 +4313,12 @@ function SettingsPage() {
     try {
       const res = await fetch("/api/system/reset", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "重置失败");
-      setResetMsg({ type: "success", text: "系统已重置，请重新连接网关" });
+      if (!res.ok) throw new Error(data.error ?? t("settings.resetFailed"));
+      setResetMsg({ type: "success", text: t("settings.resetSuccess") });
       setShowResetConfirm(false);
       setGateways([]);
     } catch (err) {
-      setResetMsg({ type: "error", text: err instanceof Error ? err.message : "重置失败" });
+      setResetMsg({ type: "error", text: err instanceof Error ? err.message : t("settings.resetFailed") });
     } finally {
       setResetting(false);
     }
@@ -4320,34 +4328,34 @@ function SettingsPage() {
     <div className="fade-in">
       {/* 多网关管理 */}
       <div className="card max-w-2xl">
-        <h3 className="text-lg font-bold text-white mb-4">网关管理</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{t("settings.gatewayManagement")}</h3>
 
         {/* 添加网关表单 */}
         <form onSubmit={handleAddGateway} className="flex flex-wrap items-end gap-3 mb-6">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-gray-400">名称</label>
+            <label className="text-xs text-gray-400">{t("settings.name")}</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="可选"
+              placeholder={t("settings.optional")}
               className="input-field w-28"
               style={{ padding: '8px 12px', fontSize: '14px' }}
             />
           </div>
           <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <label className="text-xs text-gray-400">IP 地址</label>
+            <label className="text-xs text-gray-400">{t("settings.ipAddress")}</label>
             <input
               type="text"
               value={newIp}
               onChange={(e) => setNewIp(e.target.value)}
-              placeholder="例: 192.168.1.100"
+              placeholder={t("settings.ipExample")}
               className="input-field"
               style={{ padding: '8px 12px', fontSize: '14px' }}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-gray-400">端口</label>
+            <label className="text-xs text-gray-400">{t("settings.port")}</label>
             <input
               type="number"
               value={newPort}
@@ -4368,15 +4376,15 @@ function SettingsPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            {adding ? "添加中..." : "添加网关"}
+            {adding ? t("settings.adding") : t("settings.addGateway")}
           </button>
         </form>
 
         {/* 网关列表 */}
         {loading ? (
-          <p className="text-sm text-gray-500 text-center py-4">加载中...</p>
+          <p className="text-sm text-gray-500 text-center py-4">{t("common.loading")}</p>
         ) : gateways.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">暂无网关，请添加</p>
+          <p className="text-sm text-gray-500 text-center py-4">{t("settings.noGateways")}</p>
         ) : (
           <div className="space-y-3">
             {gateways.map((gw) => (
@@ -4388,20 +4396,20 @@ function SettingsPage() {
 
       {/* 协议信息 */}
       <div className="card mt-6 max-w-2xl">
-        <h3 className="text-lg font-bold text-white mb-4">协议信息</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{t("settings.protocolInfo")}</h3>
         <div className="space-y-3 text-sm">
-          <div className="flex justify-between"><span className="text-gray-400">传输协议</span><span className="text-white">TCP</span></div>
-          <div className="flex justify-between"><span className="text-gray-400">默认端口</span><span className="text-white">8091</span></div>
-          <div className="flex justify-between"><span className="text-gray-400">消息格式</span><span className="text-white">JSON</span></div>
-          <div className="flex justify-between"><span className="text-gray-400">通信方式</span><span className="text-white">双向</span></div>
+          <div className="flex justify-between"><span className="text-gray-400">{t("settings.transport")}</span><span className="text-white">TCP</span></div>
+          <div className="flex justify-between"><span className="text-gray-400">{t("settings.defaultPort")}</span><span className="text-white">8091</span></div>
+          <div className="flex justify-between"><span className="text-gray-400">{t("settings.messageFormat")}</span><span className="text-white">JSON</span></div>
+          <div className="flex justify-between"><span className="text-gray-400">{t("settings.communication")}</span><span className="text-white">{t("settings.bidirectional")}</span></div>
         </div>
       </div>
 
       {/* 系统重置 */}
       <div className="card mt-6 max-w-2xl border border-red-500/20">
-        <h3 className="text-lg font-bold text-white mb-3">系统重置</h3>
+        <h3 className="text-lg font-bold text-white mb-3">{t("settings.reset")}</h3>
         <p className="text-sm text-gray-500 mb-4">
-          清空所有数据（设备、空间、场景、能耗记录），并解除网关绑定。执行后将返回初始状态，可重新连接新网关。
+          {t("settings.resetDescription")}
         </p>
 
         {resetMsg && (
@@ -4416,17 +4424,17 @@ function SettingsPage() {
 
         {!showResetConfirm ? (
           <button onClick={() => setShowResetConfirm(true)} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition-colors">
-            重置系统
+            {t("settings.resetSystem")}
           </button>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-red-400">确定要重置系统吗？此操作不可撤销。</p>
+            <p className="text-sm text-red-400">{t("settings.confirmResetDescription")}</p>
             <div className="flex gap-3">
               <button onClick={handleReset} disabled={resetting} className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition-colors disabled:opacity-50">
-                {resetting ? "重置中..." : "确认重置"}
+                {resetting ? t("settings.resetting") : t("settings.confirmReset")}
               </button>
               <button onClick={() => { setShowResetConfirm(false); setResetMsg(null); }} className="px-5 py-2 bg-[#1c2630] hover:bg-[#253040] text-gray-400 text-sm rounded-md transition-colors">
-                取消
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -4437,6 +4445,7 @@ function SettingsPage() {
 }
 
 function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: () => void }) {
+  const { t } = useTranslation();
   const [connecting, setConnecting] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -4444,7 +4453,7 @@ function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: 
 
   const liveStatus = gateway.liveStatus || gateway.status;
   const statusColor = liveStatus === "connected" ? "text-green-400" : liveStatus === "reconnecting" ? "text-yellow-400" : liveStatus === "error" ? "text-red-400" : "text-gray-400";
-  const statusText = liveStatus === "connected" ? "已连接" : liveStatus === "reconnecting" ? "重连中" : liveStatus === "connecting" ? "连接中" : liveStatus === "error" ? "错误" : "未连接";
+  const statusText = liveStatus === "connected" ? t("settings.connected") : liveStatus === "reconnecting" ? t("settings.reconnecting") : liveStatus === "connecting" ? t("settings.connecting") : liveStatus === "error" ? t("common.error") : t("settings.disconnected");
   const statusDot = liveStatus === "connected" ? "status-online" : liveStatus === "reconnecting" ? "status-warning" : liveStatus === "error" ? "bg-red-600 rounded-full w-2 h-2" : "status-offline";
 
   const handleConnect = async () => {
@@ -4457,11 +4466,11 @@ function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: 
         body: JSON.stringify({ gatewayId: gateway.id, ip: gateway.ip, port: gateway.port }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "连接失败");
-      setMsg({ type: "success", text: `已连接到 ${gateway.ip}` });
+      if (!res.ok) throw new Error(data.error ?? t("settings.connectFailed"));
+      setMsg({ type: "success", text: t("settings.connectedTo", { ip: gateway.ip }) });
       await onRefresh();
     } catch (err) {
-      setMsg({ type: "error", text: err instanceof Error ? err.message : "连接失败" });
+      setMsg({ type: "error", text: err instanceof Error ? err.message : t("settings.connectFailed") });
     } finally {
       setConnecting(false);
     }
@@ -4473,7 +4482,7 @@ function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ gatewayId: gateway.id }),
     });
-    setMsg({ type: "success", text: "已断开连接" });
+    setMsg({ type: "success", text: t("settings.disconnected") });
     await onRefresh();
   };
 
@@ -4486,10 +4495,10 @@ function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: 
         body: JSON.stringify({ gatewayId: gateway.id }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "删除失败");
+      if (!res.ok) throw new Error(data.error ?? t("settings.deleteFailed"));
       await onRefresh();
     } catch (err) {
-      setMsg({ type: "error", text: err instanceof Error ? err.message : "删除失败" });
+      setMsg({ type: "error", text: err instanceof Error ? err.message : t("settings.deleteFailed") });
     } finally {
       setRemoving(false);
     }
@@ -4517,23 +4526,23 @@ function GatewayCard({ gateway, onRefresh }: { gateway: GatewayInfo; onRefresh: 
       <div className="flex gap-2">
         {liveStatus !== "connected" ? (
           <button onClick={handleConnect} disabled={connecting} className="btn btn-primary text-xs py-1 disabled:opacity-40">
-            <i className="fas fa-plug" /><span>{connecting ? "连接中..." : "连接"}</span>
+            <i className="fas fa-plug" /><span>{connecting ? t("settings.connecting") : t("settings.connect")}</span>
           </button>
         ) : (
           <button onClick={handleDisconnect} className="btn btn-secondary text-xs py-1">
-            <i className="fas fa-plug" /><span>断开</span>
+            <i className="fas fa-plug" /><span>{t("settings.disconnect")}</span>
           </button>
         )}
         <button onClick={() => setShowDeleteConfirm(true)} disabled={removing} className="btn text-xs py-1 text-red-400 hover:text-red-300 bg-transparent border-0 disabled:opacity-40">
-          {removing ? "删除中..." : "删除"}
+          {removing ? t("settings.deleting") : t("common.delete")}
         </button>
       </div>
 
       {showDeleteConfirm && (
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-red-400">确定删除？设备不会被删除。</span>
-          <button onClick={handleRemove} className="px-2 py-1 bg-red-600 text-white rounded">确认</button>
-          <button onClick={() => setShowDeleteConfirm(false)} className="px-2 py-1 bg-[#1c2630] text-gray-400 rounded">取消</button>
+          <span className="text-red-400">{t("settings.confirmDeleteGateway")}</span>
+          <button onClick={handleRemove} className="px-2 py-1 bg-red-600 text-white rounded">{t("common.confirm")}</button>
+          <button onClick={() => setShowDeleteConfirm(false)} className="px-2 py-1 bg-[#1c2630] text-gray-400 rounded">{t("common.cancel")}</button>
         </div>
       )}
     </div>
@@ -4554,6 +4563,7 @@ function DeviceDrawer({
   onControl: (did: string, action: string, value: number[], meshid: string, transition?: number) => Promise<void>;
   roomName: string;
 }) {
+  const { t } = useTranslation();
   const [brightness, setBrightness] = useState(100);
   const [colorTemp, setColorTemp] = useState(50); // 0-100, 0=最暖, 100=最冷
 
@@ -4642,7 +4652,7 @@ function DeviceDrawer({
       >
         <div className="p-6 overflow-y-auto h-full">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">设备控制</h3>
+            <h3 className="text-xl font-bold text-white">{t("drawer.control")}</h3>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
               <i className="fas fa-times text-xl" />
             </button>
@@ -4651,9 +4661,9 @@ function DeviceDrawer({
           {/* 设备信息卡片 */}
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 mb-6">
             <div className="flex items-center justify-between mb-1">
-              <h4 className="text-lg font-bold text-white">{device.name || "未命名设备"}</h4>
+              <h4 className="text-lg font-bold text-white">{device.name || t("devices.unnamed")}</h4>
               <span className={`badge ${device.alive === 1 ? "badge-success" : "badge-error"}`}>
-                {device.alive === 1 ? "在线" : "离线"}
+                {device.alive === 1 ? t("devices.online") : t("devices.offline")}
               </span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -4663,11 +4673,11 @@ function DeviceDrawer({
             </div>
             {device.funcs && device.funcs.length > 0 && (
               <div className="mt-2 text-xs text-gray-500">
-                <span>功能码: </span>
+                <span>{t("devices.funcCodes")}: </span>
                 <span className="font-mono text-blue-400">[{device.funcs.join(", ")}]</span>
-                <span className="ml-2">→ 解析为: </span>
+                <span className="ml-2">{t("devices.resolvedAs")}: </span>
                 <span className={`font-mono ${resolvedFunc === 4 ? "text-green-400" : resolvedFunc === 5 ? "text-purple-400" : "text-gray-400"}`}>
-                  {resolvedFunc === 4 ? "双色温" : resolvedFunc === 5 ? "HSL彩灯" : resolvedFunc === 3 ? "调光灯" : resolvedFunc === 2 ? "开关" : `func=${resolvedFunc}`}
+                  {resolvedFunc === 4 ? t("deviceType.1984dual") : resolvedFunc === 5 ? t("deviceType.1984hsl") : resolvedFunc === 3 ? t("deviceType.1984dim") : resolvedFunc === 2 ? t("deviceType.1984switch") : `func=${resolvedFunc}`}
                 </span>
               </div>
             )}
@@ -4677,21 +4687,21 @@ function DeviceDrawer({
             <div className="space-y-6">
               {/* 开关控制 */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-3">开关控制</label>
+                <label className="block text-sm font-medium text-gray-400 mb-3">{t("drawer.switchControl")}</label>
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleSwitch(true)}
                     className={`btn flex-1 ${isOn ? "btn-primary" : "btn-secondary"}`}
                   >
                     <i className="fas fa-power-off"></i>
-                    <span>开启</span>
+                    <span>{t("drawer.turnOn")}</span>
                   </button>
                   <button
                     onClick={() => handleSwitch(false)}
                     className={`btn flex-1 ${!isOn ? "btn-primary" : "btn-secondary"}`}
                   >
                     <i className="fas fa-power-off"></i>
-                    <span>关闭</span>
+                    <span>{t("drawer.turnOff")}</span>
                   </button>
                 </div>
               </div>
@@ -4700,7 +4710,7 @@ function DeviceDrawer({
               {isDimmable && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-medium text-gray-400">亮度</label>
+                    <label className="text-sm font-medium text-gray-400">{t("drawer.brightness")}</label>
                     <span className="text-white font-medium">{brightness}%</span>
                   </div>
                   <input
@@ -4719,11 +4729,11 @@ function DeviceDrawer({
               {hasColorTemp && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-medium text-gray-400">色温</label>
+                    <label className="text-sm font-medium text-gray-400">{t("drawer.colorTemp")}</label>
                     <span className="text-white font-medium">{colorTemp}%</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400">暖光</span>
+                    <span className="text-xs text-gray-400">{t("drawer.warmLight")}</span>
                     <input
                       type="range"
                       className="slider flex-1"
@@ -4733,7 +4743,7 @@ function DeviceDrawer({
                       onChange={(e) => setColorTemp(Number(e.target.value))}
                       onMouseUp={(e) => handleColorTemp(Number((e.target as HTMLInputElement).value))}
                     />
-                    <span className="text-xs text-gray-400">冷光</span>
+                    <span className="text-xs text-gray-400">{t("drawer.coolLight")}</span>
                   </div>
                 </div>
               )}
@@ -4741,7 +4751,7 @@ function DeviceDrawer({
               {/* RGB颜色控制 */}
               {hasRGB && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-3">RGB颜色</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-3">{t("drawer.rgbColor")}</label>
                   <div className="grid grid-cols-6 gap-2">
                     {["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF", "#FFFFFF", "#FFA500", "#800080", "#008000", "#000080", "#808080"].map((color) => (
                       <button
@@ -4757,12 +4767,12 @@ function DeviceDrawer({
 
               {/* 场景切换 */}
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-3">场景切换</label>
+                <label className="block text-sm font-medium text-gray-400 mb-3">{t("drawer.sceneSwitch")}</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button className="btn btn-secondary">会议模式</button>
-                  <button className="btn btn-secondary">演示模式</button>
-                  <button className="btn btn-secondary">休息模式</button>
-                  <button className="btn btn-secondary">清洁模式</button>
+                  <button className="btn btn-secondary">{t("drawer.meetingMode")}</button>
+                  <button className="btn btn-secondary">{t("drawer.demoMode")}</button>
+                  <button className="btn btn-secondary">{t("drawer.restMode")}</button>
+                  <button className="btn btn-secondary">{t("drawer.cleanMode")}</button>
                 </div>
               </div>
             </div>
@@ -4772,28 +4782,28 @@ function DeviceDrawer({
           {(device.type === 1860 || device.type === 1861 || device.type === 1862) && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-3">窗帘控制</label>
+                <label className="block text-sm font-medium text-gray-400 mb-3">{t("drawer.curtainControl")}</label>
                 <div className="flex gap-3">
                   <button
                     onClick={() => onControl(device.did, "level", [0], device.meshid, 1000)}
                     className="btn btn-secondary flex-1"
                   >
                     <i className="fas fa-arrow-up"></i>
-                    <span>打开</span>
+                    <span>{t("automation.curtainOpen")}</span>
                   </button>
                   <button
                     onClick={() => onControl(device.did, "level", [50], device.meshid, 0)}
                     className="btn btn-secondary flex-1"
                   >
                     <i className="fas fa-stop"></i>
-                    <span>停止</span>
+                    <span>{t("drawer.stop")}</span>
                   </button>
                   <button
                     onClick={() => onControl(device.did, "level", [100], device.meshid, 1000)}
                     className="btn btn-secondary flex-1"
                   >
                     <i className="fas fa-arrow-down"></i>
-                    <span>关闭</span>
+                    <span>{t("automation.curtainClosed")}</span>
                   </button>
                 </div>
               </div>
@@ -4804,8 +4814,8 @@ function DeviceDrawer({
           {device.type === 1218 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-3">按键配置</label>
-                <p className="text-sm text-gray-500">面板设备支持场景绑定</p>
+                <label className="block text-sm font-medium text-gray-400 mb-3">{t("drawer.buttonConfig")}</label>
+                <p className="text-sm text-gray-500">{t("drawer.panelHint")}</p>
               </div>
             </div>
           )}
@@ -4814,7 +4824,7 @@ function DeviceDrawer({
           {device.type === 1344 && (
             <div className="space-y-6">
               <div className="p-4 bg-white/5 rounded-lg">
-                <label className="block text-sm font-medium text-gray-400 mb-2">传感器状态</label>
+                <label className="block text-sm font-medium text-gray-400 mb-2">{t("drawer.sensorStatus")}</label>
                 <p className="text-lg text-white font-medium">{device.value?.[0] || "N/A"}</p>
               </div>
             </div>
@@ -4822,18 +4832,18 @@ function DeviceDrawer({
 
           {/* 设备详情 */}
           <div className="mt-8 pt-6 border-t border-white/10">
-            <h4 className="text-sm font-medium text-gray-400 mb-3">设备信息</h4>
+            <h4 className="text-sm font-medium text-gray-400 mb-3">{t("drawer.deviceInfo")}</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">设备类型</span>
-                <span className="text-white">{DEVICE_TYPE_LABELS[device.type] || `类型${device.type}`}</span>
+                <span className="text-gray-500">{t("devices.type")}</span>
+                <span className="text-white">{DEVICE_TYPE_LABELS[device.type] || t("drawer.typeFallback", { type: device.type })}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">产品ID</span>
+                <span className="text-gray-500">{t("drawer.productId")}</span>
                 <span className="text-white">{device.pid}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">固件版本</span>
+                <span className="text-gray-500">{t("drawer.firmwareVersion")}</span>
                 <span className="text-white">{device.ver}</span>
               </div>
               <div className="flex justify-between">
@@ -4878,6 +4888,7 @@ interface AutomationScene {
 }
 
 function AutomationPage({ devices }: { devices: DbDevice[] }) {
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [scenes, setScenes] = useState<AutomationScene[]>([]);
   const [loading, setLoading] = useState(true);
@@ -4926,13 +4937,13 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
 
   // Delete task
   const handleDelete = async (taskId: string) => {
-    if (!confirm("确定要删除此定时任务吗？")) return;
+    if (!confirm(t("automation.confirmDelete"))) return;
     try {
       await fetch(`/api/scheduler/tasks/${taskId}`, { method: "DELETE" });
       await loadData();
     } catch (err) {
       console.error("Delete failed:", err);
-      alert("删除失败");
+      alert(t("automation.deleteFailed"));
     }
   };
 
@@ -4942,14 +4953,14 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
       const res = await fetch(`/api/scheduler/tasks/${task.id}/run`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "执行失败");
+        alert(data.error || t("automation.runFailed"));
         return;
       }
-      alert(`已执行任务 "${task.name}"`);
+      alert(t("automation.taskExecuted", { name: task.name }));
       await loadData();
     } catch (err) {
       console.error("Run task failed:", err);
-      alert("执行失败");
+      alert(t("automation.runFailed"));
     }
   };
 
@@ -4970,11 +4981,19 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
           ? `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`
           : null;
       if (dayOfWeek !== "*" && dayOfWeek !== "?") {
-        const dayNames: Record<string, string> = { "0": "周日", "1": "周一", "2": "周二", "3": "周三", "4": "周四", "5": "周五", "6": "周六" };
+        const dayNames: Record<string, string> = {
+          "0": t("automation.sunday"),
+          "1": t("automation.monday"),
+          "2": t("automation.tuesday"),
+          "3": t("automation.wednesday"),
+          "4": t("automation.thursday"),
+          "5": t("automation.friday"),
+          "6": t("automation.saturday"),
+        };
         const days = dayOfWeek.split(",").map((d) => dayNames[d] || d);
-        return timeStr ? `每${days.join("/")} ${timeStr}` : `每${days.join("/")}`;
+        return timeStr ? t("automation.everyDayAtTime", { days: days.join("/"), time: timeStr }) : t("automation.everyDay", { days: days.join("/") });
       }
-      if (timeStr) return `每天 ${timeStr}`;
+      if (timeStr) return t("automation.everyDayAtTimeOnly", { time: timeStr });
       return cronExpr;
     } catch {
       return cronExpr;
@@ -4984,21 +5003,21 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
   // Get action description
   const getActionDesc = (task: ScheduledTask): string => {
     if (task.action === "scene" && task.scene) {
-      return `激活场景: ${task.scene.name}`;
+      return t("automation.activateScene", { name: task.scene.name });
     }
-    const valueMap: Record<string, string> = {
-      onoff: "开关",
-      level: "调光",
-      curtain: "窗帘",
-      ctl: "色温",
-      color: "彩光",
+    const actionLabels: Record<string, string> = {
+      onoff: t("func.0"),
+      level: t("func.1"),
+      curtain: t("deviceType.1860"),
+      ctl: t("func.2"),
+      color: t("func.3"),
     };
     try {
       const vals = JSON.parse(task.value || "[]");
       const valStr = vals.length > 0 ? vals.join(", ") : "";
-      return `${valueMap[task.action] || task.action}${valStr ? ` (${valStr})` : ""}`;
+      return `${actionLabels[task.action] || task.action}${valStr ? ` (${valStr})` : ""}`;
     } catch {
-      return valueMap[task.action] || task.action;
+      return actionLabels[task.action] || task.action;
     }
   };
 
@@ -5037,10 +5056,10 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
 
       <div className="card">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-white">定时任务</h3>
+          <h3 className="text-lg font-bold text-white">{t("automation.scheduledTasks")}</h3>
           <button className="btn btn-primary" onClick={() => handleEdit(null)}>
             <i className="fas fa-plus" />
-            <span>新建任务</span>
+            <span>{t("automation.add")}</span>
           </button>
         </div>
 
@@ -5053,8 +5072,8 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
             <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
               <i className="fas fa-clock text-2xl text-gray-500" />
             </div>
-            <p className="text-gray-400 mb-2">暂无定时任务</p>
-            <p className="text-gray-500 text-sm">点击上方按钮创建第一个自动化任务</p>
+            <p className="text-gray-400 mb-2">{t("automation.noTasks")}</p>
+            <p className="text-gray-500 text-sm">{t("automation.createFirst")}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -5081,11 +5100,11 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
                             ? "bg-purple-500/20 text-purple-400"
                             : "bg-blue-500/20 text-blue-400"
                         }`}>
-                          {task.action === "scene" ? "场景" : "设备"}
+                          {task.action === "scene" ? t("automation.scene") : t("automation.device")}
                         </span>
                         {!task.enabled && (
                           <span className="px-2 py-0.5 rounded text-xs bg-gray-500/20 text-gray-400">
-                            已禁用
+                            {t("automation.disabled")}
                           </span>
                         )}
                       </div>
@@ -5100,13 +5119,13 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
                         {task.nextRun && (
                           <span>
                             <i className="fas fa-calendar mr-1" />
-                            下次: {new Date(task.nextRun).toLocaleString("zh-CN")}
+                            {t("automation.nextRun")}: {new Date(task.nextRun).toLocaleString("zh-CN")}
                           </span>
                         )}
                         {task.lastRun && (
                           <span>
                             <i className="fas fa-history mr-1" />
-                            上次: {new Date(task.lastRun).toLocaleString("zh-CN")}
+                            {t("automation.lastRun")}: {new Date(task.lastRun).toLocaleString("zh-CN")}
                           </span>
                         )}
                       </div>
@@ -5120,7 +5139,7 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
                       className={`w-12 h-6 rounded-full transition-all relative ${
                         task.enabled ? "bg-blue-500" : "bg-gray-600"
                       }`}
-                      title={task.enabled ? "点击禁用" : "点击启用"}
+                      title={task.enabled ? t("automation.disable") : t("automation.enable")}
                     >
                       <div
                         className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-all shadow ${
@@ -5131,21 +5150,21 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
                     <button
                       onClick={() => handleRunNow(task)}
                       className="btn btn-secondary text-sm"
-                      title="立即执行"
+                      title={t("automation.runNow")}
                     >
                       <i className="fas fa-play" />
                     </button>
                     <button
                       onClick={() => handleEdit(task)}
                       className="btn btn-secondary text-sm"
-                      title="编辑"
+                      title={t("common.edit")}
                     >
                       <i className="fas fa-pen" />
                     </button>
                     <button
                       onClick={() => handleDelete(task.id)}
                       className="btn btn-secondary text-sm text-red-400 hover:text-red-300"
-                      title="删除"
+                      title={t("common.delete")}
                     >
                       <i className="fas fa-trash" />
                     </button>
@@ -5159,30 +5178,30 @@ function AutomationPage({ devices }: { devices: DbDevice[] }) {
         {devices.length === 0 && tasks.length === 0 && (
           <p className="text-center text-gray-400 mt-6">
             <i className="fas fa-info-circle mr-2" />
-            请先连接网关获取设备数据
+            {t("automation.connectGatewayFirst")}
           </p>
         )}
       </div>
 
       {/* Cron 配置说明 */}
       <div className="card mt-6">
-        <h3 className="text-lg font-bold text-white mb-4">Cron 表达式说明</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{t("automation.cronHelp")}</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="p-3 bg-white/5 rounded-lg">
             <code className="text-blue-400">0 8 * * *</code>
-            <p className="text-gray-400 mt-1">每天 08:00</p>
+            <p className="text-gray-400 mt-1">{t("automation.cronExample1")}</p>
           </div>
           <div className="p-3 bg-white/5 rounded-lg">
             <code className="text-blue-400">30 18 * * 1-5</code>
-            <p className="text-gray-400 mt-1">工作日 18:30</p>
+            <p className="text-gray-400 mt-1">{t("automation.cronExample2")}</p>
           </div>
           <div className="p-3 bg-white/5 rounded-lg">
             <code className="text-blue-400">0 7 * * 0,6</code>
-            <p className="text-gray-400 mt-1">周末 07:00</p>
+            <p className="text-gray-400 mt-1">{t("automation.cronExample3")}</p>
           </div>
           <div className="p-3 bg-white/5 rounded-lg">
             <code className="text-blue-400">0 22 * * *</code>
-            <p className="text-gray-400 mt-1">每天 22:00</p>
+            <p className="text-gray-400 mt-1">{t("automation.cronExample4")}</p>
           </div>
         </div>
       </div>
@@ -5204,6 +5223,7 @@ function TaskEditModal({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(task?.name || "");
   const [taskType, setTaskType] = useState<"device" | "scene">(
     task?.action === "scene" ? "scene" : "device"
@@ -5239,23 +5259,23 @@ function TaskEditModal({
     const funcs = device.funcs || [];
 
     // 基础开关
-    if (func === 2 || funcs.includes(2)) actions.push({ value: "onoff", label: "开关" });
+    if (func === 2 || funcs.includes(2)) actions.push({ value: "onoff", label: t("func.0") });
 
     // 调光
-    if (func === 3 || funcs.includes(3)) actions.push({ value: "level", label: "调光" });
+    if (func === 3 || funcs.includes(3)) actions.push({ value: "level", label: t("func.1") });
 
     // 色温
-    if (func === 4 || funcs.includes(4)) actions.push({ value: "ctl", label: "色温" });
+    if (func === 4 || funcs.includes(4)) actions.push({ value: "ctl", label: t("func.2") });
 
     // 彩光
-    if (func === 5 || funcs.includes(5)) actions.push({ value: "color", label: "彩光" });
+    if (func === 5 || funcs.includes(5)) actions.push({ value: "color", label: t("func.3") });
 
     // 窗帘
     if (device.type === 1860 || device.type === 1861 || device.type === 1862) {
-      actions.push({ value: "curtain", label: "窗帘" });
+      actions.push({ value: "curtain", label: t("deviceType.1860") });
     }
 
-    return actions.length > 0 ? actions : [{ value: "onoff", label: "开关" }];
+    return actions.length > 0 ? actions : [{ value: "onoff", label: t("func.0") }];
   };
 
   // 构建 cron 表达式
@@ -5274,17 +5294,17 @@ function TaskEditModal({
   // 处理保存
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("请输入任务名称");
+      alert(t("automation.enterName"));
       return;
     }
 
     if (taskType === "device" && !selectedDeviceId) {
-      alert("请选择设备");
+      alert(t("automation.selectDevice"));
       return;
     }
 
     if (taskType === "scene" && !selectedSceneId) {
-      alert("请选择场景");
+      alert(t("automation.selectScene"));
       return;
     }
 
@@ -5320,13 +5340,13 @@ function TaskEditModal({
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "保存失败");
+        throw new Error(data.error || t("automation.saveFailed"));
       }
 
       onSave();
     } catch (err) {
       console.error("Save failed:", err);
-      alert(err instanceof Error ? err.message : "保存失败");
+      alert(err instanceof Error ? err.message : t("automation.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -5337,7 +5357,7 @@ function TaskEditModal({
     if (taskType === "scene") {
       return (
         <div className="text-sm text-gray-400">
-          执行场景时不需要配置动作值
+          {t("automation.sceneNoActionNeeded")}
         </div>
       );
     }
@@ -5354,7 +5374,7 @@ function TaskEditModal({
                 onChange={() => setValue([1])}
                 className="w-4 h-4"
               />
-              <span className="text-white">开</span>
+              <span className="text-white">{t("common.on")}</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -5364,7 +5384,7 @@ function TaskEditModal({
                 onChange={() => setValue([0])}
                 className="w-4 h-4"
               />
-              <span className="text-white">关</span>
+              <span className="text-white">{t("common.off")}</span>
             </label>
           </div>
         );
@@ -5392,7 +5412,7 @@ function TaskEditModal({
         return (
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-gray-400">亮度</label>
+              <label className="text-sm text-gray-400">{t("drawer.brightness")}</label>
               <input
                 type="range"
                 min="0"
@@ -5404,7 +5424,7 @@ function TaskEditModal({
               <div className="text-right text-sm text-white">{value[0] || 0}%</div>
             </div>
             <div>
-              <label className="text-sm text-gray-400">色温</label>
+              <label className="text-sm text-gray-400">{t("drawer.colorTemp")}</label>
               <input
                 type="range"
                 min="0"
@@ -5414,9 +5434,9 @@ function TaskEditModal({
                 className="w-full h-2 bg-gradient-to-r from-blue-300 to-orange-300 rounded-lg appearance-none cursor-pointer"
               />
               <div className="flex justify-between text-sm text-gray-400">
-                <span>冷</span>
+                <span>{t("automation.cool")}</span>
                 <span className="text-white">{value[1] || 50}</span>
-                <span>暖</span>
+                <span>{t("automation.warm")}</span>
               </div>
             </div>
           </div>
@@ -5434,9 +5454,9 @@ function TaskEditModal({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-sm text-gray-400 mt-1">
-              <span>关闭</span>
+              <span>{t("automation.curtainClosed")}</span>
               <span className="text-white">{value[0] || 0}%</span>
-              <span>打开</span>
+              <span>{t("automation.curtainOpen")}</span>
             </div>
           </div>
         );
@@ -5453,7 +5473,7 @@ function TaskEditModal({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-sm text-gray-400 mt-1">
-              <span>亮度: {value[0] || 50}%</span>
+              <span>{t("automation.brightnessLabel")}: {value[0] || 50}%</span>
             </div>
           </div>
         );
@@ -5479,7 +5499,7 @@ function TaskEditModal({
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-white">
-              {task ? "编辑定时任务" : "新建定时任务"}
+              {task ? t("automation.editTask") : t("automation.addTask")}
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-white">
               <i className="fas fa-times text-xl" />
@@ -5491,13 +5511,13 @@ function TaskEditModal({
             {/* 任务名称 */}
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">
-                任务名称
+                {t("automation.taskName")}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：每天早上开灯"
+                placeholder={t("automation.example")}
                 className="input-field w-full"
               />
             </div>
@@ -5505,7 +5525,7 @@ function TaskEditModal({
             {/* 任务类型 */}
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">
-                任务类型
+                {t("automation.taskType")}
               </label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -5516,7 +5536,7 @@ function TaskEditModal({
                     onChange={() => setTaskType("device")}
                     className="w-4 h-4"
                   />
-                  <span className="text-white">设备控制</span>
+                  <span className="text-white">{t("automation.deviceControl")}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -5526,7 +5546,7 @@ function TaskEditModal({
                     onChange={() => setTaskType("scene")}
                     className="w-4 h-4"
                   />
-                  <span className="text-white">场景激活</span>
+                  <span className="text-white">{t("automation.sceneActivation")}</span>
                 </label>
               </div>
             </div>
@@ -5535,7 +5555,7 @@ function TaskEditModal({
             {taskType === "device" ? (
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  选择设备
+                  {t("automation.selectDeviceLabel")}
                 </label>
                 <select
                   value={selectedDeviceId}
@@ -5549,10 +5569,10 @@ function TaskEditModal({
                   }}
                   className="input-field w-full"
                 >
-                  <option value="">请选择设备</option>
+                  <option value="">{t("automation.selectDevice")}</option>
                   {devices.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({DEVICE_TYPE_LABELS[d.type] || `类型${d.type}`})
+                      {d.name} ({d.type === 1984 ? t("deviceType.1984") : d.type === 1218 ? t("deviceType.1218") : d.type === 1860 || d.type === 1861 || d.type === 1862 ? t("deviceType.1860") : d.type === 1344 ? t("deviceType.1344") : `${t("devices.type")}${d.type}`})
                     </option>
                   ))}
                 </select>
@@ -5561,7 +5581,7 @@ function TaskEditModal({
                 {selectedDeviceId && deviceActions.length > 0 && (
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                      动作类型
+                      {t("automation.actionType")}
                     </label>
                     <select
                       value={action}
@@ -5599,14 +5619,14 @@ function TaskEditModal({
             ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  选择场景
+                  {t("automation.selectSceneLabel")}
                 </label>
                 <select
                   value={selectedSceneId}
                   onChange={(e) => setSelectedSceneId(e.target.value)}
                   className="input-field w-full"
                 >
-                  <option value="">请选择场景</option>
+                  <option value="">{t("automation.selectScene")}</option>
                   {scenes.filter((s) => s.isCustom).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -5619,7 +5639,7 @@ function TaskEditModal({
             {/* 执行时间 */}
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">
-                执行时间
+                {t("automation.schedule")}
               </label>
               <input
                 type="time"
@@ -5632,13 +5652,13 @@ function TaskEditModal({
             {/* 重复模式 */}
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">
-                重复模式
+                {t("automation.repeatMode")}
               </label>
               <div className="flex gap-4">
                 {[
-                  { value: "daily", label: "每天" },
-                  { value: "weekdays", label: "工作日" },
-                  { value: "weekends", label: "周末" },
+                  { value: "daily", label: t("automation.everyDay") },
+                  { value: "weekdays", label: t("automation.weekdays") },
+                  { value: "weekends", label: t("automation.weekend") },
                 ].map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -5658,7 +5678,7 @@ function TaskEditModal({
             {(taskType === "device" && selectedDeviceId) && (
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">
-                  动作值
+                  {t("automation.actionValue")}
                 </label>
                 {renderValueInput()}
               </div>
@@ -5669,12 +5689,12 @@ function TaskEditModal({
           <div className="mt-6 p-3 bg-white/5 rounded-lg">
             <div className="text-sm text-gray-400">
               <i className="fas fa-clock mr-1" />
-              执行计划：
+              {t("automation.executionPlan")}
             </div>
             <div className="text-white mt-1">
-              {name || "未命名任务"} - {time} - {
-                daysType === "daily" ? "每天" :
-                daysType === "weekdays" ? "工作日" : "周末"
+              {name || t("automation.unnamedTask")} - {time} - {
+                daysType === "daily" ? t("automation.everyDay") :
+                daysType === "weekdays" ? t("automation.weekdays") : t("automation.weekend")
               }
             </div>
           </div>
@@ -5682,14 +5702,14 @@ function TaskEditModal({
           {/* Actions */}
           <div className="flex gap-3 mt-6">
             <button onClick={onClose} className="btn btn-secondary flex-1">
-              取消
+              {t("common.cancel")}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
               className="btn btn-primary flex-1"
             >
-              {saving ? "保存中..." : "保存"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </div>
@@ -5700,6 +5720,7 @@ function TaskEditModal({
 
 // ==================== 面板场景联动 ====================
 function PanelSceneLinkage() {
+  const { t } = useTranslation();
   const [panelDid, setPanelDid] = useState("");
   const [buttonIndex, setButtonIndex] = useState(0);
   const [selectedScene, setSelectedScene] = useState("");
@@ -5727,11 +5748,11 @@ function PanelSceneLinkage() {
 
   const handleCreate = async () => {
     if (!panelDid.trim()) {
-      alert("请输入面板 DID");
+      alert(t("panel.enterDID"));
       return;
     }
     if (!selectedScene) {
-      alert("请选择场景");
+      alert(t("panel.selectScene"));
       return;
     }
     setSaving(true);
@@ -5747,7 +5768,7 @@ function PanelSceneLinkage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "创建失败");
+        alert(data.error || t("panel.createFailed"));
         return;
       }
       setPanelDid("");
@@ -5755,24 +5776,24 @@ function PanelSceneLinkage() {
       setSelectedScene("");
       await loadBindings();
     } catch (err) {
-      alert("创建失败");
+      alert(t("panel.createFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("确认删除该绑定？")) return;
+    if (!confirm(t("panel.confirmDelete"))) return;
     try {
       const res = await fetch(`/api/panel-bindings/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "删除失败");
+        alert(data.error || t("panel.deleteFailed"));
         return;
       }
       await loadBindings();
     } catch (err) {
-      alert("删除失败");
+      alert(t("panel.deleteFailed"));
     }
   };
 
@@ -5791,14 +5812,14 @@ function PanelSceneLinkage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "更新失败");
+        alert(data.error || t("panel.updateFailed"));
         return;
       }
       setEditingId(null);
       setEditSceneId("");
       await loadBindings();
     } catch (err) {
-      alert("更新失败");
+      alert(t("panel.updateFailed"));
     }
   };
 
@@ -5814,11 +5835,11 @@ function PanelSceneLinkage() {
       <div className="bg-[#1a1f2e] rounded-xl border border-white/5 p-6">
         <h3 className="text-lg font-semibold text-white mb-4">
           <i className="fa fa-link mr-2 text-blue-400"></i>
-          新建按键绑定
+          {t("panel.createNewBinding")}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">面板 DID</label>
+            <label className="block text-sm text-gray-400 mb-1">{t("panel.panelDid")}</label>
             <input
               type="text"
               value={panelDid}
@@ -5828,25 +5849,25 @@ function PanelSceneLinkage() {
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">按键</label>
+            <label className="block text-sm text-gray-400 mb-1">{t("panel.button")}</label>
             <select
               value={buttonIndex}
               onChange={(e) => setButtonIndex(Number(e.target.value))}
               className="w-full px-3 py-2 bg-[#0f1520] border border-white/10 rounded-lg text-white text-sm focus:border-blue-400 focus:outline-none"
             >
               {buttonOptions.map((idx) => (
-                <option key={idx} value={idx}>按键 {idx + 1}</option>
+                <option key={idx} value={idx}>{t("panel.buttonN", { n: idx + 1 })}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">绑定场景</label>
+            <label className="block text-sm text-gray-400 mb-1">{t("panel.boundScene")}</label>
             <select
               value={selectedScene}
               onChange={(e) => setSelectedScene(e.target.value)}
               className="w-full px-3 py-2 bg-[#0f1520] border border-white/10 rounded-lg text-white text-sm focus:border-blue-400 focus:outline-none"
             >
-              <option value="">选择场景</option>
+              <option value="">{t("panel.selectScene")}</option>
               {scenes.map((scene) => (
                 <option key={scene.id} value={scene.id}>
                   {scene.name}
@@ -5860,7 +5881,7 @@ function PanelSceneLinkage() {
               disabled={saving}
               className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {saving ? "创建中..." : "创建绑定"}
+              {saving ? t("panel.creating") : t("panel.add")}
             </button>
           </div>
         </div>
@@ -5870,23 +5891,23 @@ function PanelSceneLinkage() {
         <div className="px-6 py-4 border-b border-white/5">
           <h3 className="text-lg font-semibold text-white">
             <i className="fa fa-list mr-2 text-blue-400"></i>
-            已有绑定
+            {t("panel.existingBindings")}
           </h3>
         </div>
         {bindings.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <i className="fa fa-link text-3xl mb-3"></i>
-            <p>暂无绑定关系，请创建新的按键绑定</p>
+            <p>{t("panel.noBindings")}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">面板 DID</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">按键</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">绑定场景</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">创建时间</th>
-                <th className="text-right px-6 py-3 text-xs font-medium text-gray-400 uppercase">操作</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">{t("panel.panelDid")}</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">{t("panel.button")}</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">{t("panel.boundScene")}</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-400 uppercase">{t("panel.createdAt")}</th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-gray-400 uppercase">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -5897,7 +5918,7 @@ function PanelSceneLinkage() {
                   </td>
                   <td className="px-6 py-3">
                     <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 text-xs font-medium">
-                      按键 {binding.buttonIndex + 1}
+                      {t("panel.buttonN", { n: binding.buttonIndex + 1 })}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-sm text-gray-300">
@@ -5914,7 +5935,7 @@ function PanelSceneLinkage() {
                     ) : (
                       <span className="flex items-center gap-2">
                         <i className={`fa ${binding.scene?.icon || "fa-star"} mr-1`} style={{ color: binding.scene?.color || "#3b9eff" }}></i>
-                        {binding.scene?.name || "未知场景"}
+                        {binding.scene?.name || t("panel.unknownScene")}
                       </span>
                     )}
                   </td>
@@ -5928,13 +5949,13 @@ function PanelSceneLinkage() {
                           onClick={handleSaveEdit}
                           className="px-2 py-1 text-xs bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 transition-colors"
                         >
-                          <i className="fa fa-check mr-1"></i>保存
+                          <i className="fa fa-check mr-1"></i>{t("common.save")}
                         </button>
                         <button
                           onClick={cancelEdit}
                           className="px-2 py-1 text-xs bg-gray-500/20 text-gray-400 rounded hover:bg-gray-500/30 transition-colors"
                         >
-                          <i className="fa fa-times mr-1"></i>取消
+                          <i className="fa fa-times mr-1"></i>{t("common.cancel")}
                         </button>
                       </div>
                     ) : (
@@ -5943,13 +5964,13 @@ function PanelSceneLinkage() {
                           onClick={() => startEdit(binding)}
                           className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-400 rounded hover:bg-yellow-500/30 transition-colors"
                         >
-                          <i className="fa fa-edit mr-1"></i>更换
+                          <i className="fa fa-edit mr-1"></i>{t("panel.changeButton")}
                         </button>
                         <button
                           onClick={() => handleDelete(binding.id)}
                           className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
                         >
-                          <i className="fa fa-trash mr-1"></i>删除
+                          <i className="fa fa-trash mr-1"></i>{t("common.delete")}
                         </button>
                       </div>
                     )}
