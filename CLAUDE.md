@@ -34,4 +34,20 @@ Single markdown document describing the inSona TCP-based control protocol. No so
 - Function types: on/off, dimming, color temperature, HSL, RGB
 - Code examples in Python and JavaScript
 
-## 当前所有的修改的页面都是处于控制页面下的tab，非独立页面
+## 控制页面（control）结构规范
+
+所有控制页面功能以 Tab 形式组织在 `/control` 路由下，**不产生独立路由**。
+
+### 文件结构
+- `control/page.tsx` — 主壳组件 `ControlPanel`，负责状态管理、数据加载、Tab 条件渲染
+- `control/types.ts` — 共享类型定义（DbDevice, SpaceNode, Scene, SceneAction）
+- `control/utils.ts` — 共享工具函数（resolveDeviceFunc, toInSonaDevice 等）
+- `control/sidebar.tsx` / `header.tsx` / `device-drawer.tsx` — 公共 UI 组件
+- `control/tabs/*.tsx` — 各 Tab 页面组件（每个 Tab 一个文件）
+
+### 新增功能规则
+- 新增 Tab 页面 → 在 `control/tabs/` 下创建新文件，在 `page.tsx` 中添加条件渲染
+- 修改某个 Tab → 直接编辑对应的 `tabs/*.tsx` 文件，**不要在 `page.tsx` 中修改**
+- 新增公共组件 → 视情况放在 `control/` 根目录或 `control/tabs/` 内
+- 新增共享类型 → 添加到 `control/types.ts`
+- 新增工具函数 → 添加到 `control/utils.ts`
